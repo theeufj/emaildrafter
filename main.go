@@ -3,16 +3,15 @@ package main
 import (
 	"context"
 	"database/sql"
+	"emaildrafter/database/store"
+	"emaildrafter/internal/env"
+	"emaildrafter/internal/flash"
+	"emaildrafter/middleware"
 	"fmt"
 	"log"
 	"log/slog"
 	"net/http"
 	"os"
-	"timstack/database/store"
-	"timstack/internal/env"
-	"timstack/internal/flash"
-	"timstack/middleware"
-	"timstack/passkey"
 
 	"github.com/gorilla/mux"
 	_ "github.com/lib/pq"
@@ -41,7 +40,7 @@ func main() {
 
 	var dbHost string
 	if mode == "dev" {
-		dbHost = "postgres://joshtheeuf:jc194980@localhost:5432/passkey?sslmode=disable"
+		dbHost = "postgres://joshtheeuf:jc194980@localhost:5432/emaildrafter?sslmode=disable"
 	} else {
 
 	}
@@ -60,12 +59,12 @@ func main() {
 
 	// Set caching preference
 	// Could use Cache-Control: no-store
-	// r.Use(func(next http.Handler) http.Handler {
-	// 	return http.HandlerFunc(func(wr http.ResponseWriter, req *http.Request) {
-	// 		wr.Header().Set("Cache-Control", "max-age=0, must-revalidate")
-	// 		next.ServeHTTP(wr, req)
-	// 	})
-	// })
+	r.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(wr http.ResponseWriter, req *http.Request) {
+			wr.Header().Set("Cache-Control", "max-age=0, must-revalidate")
+			next.ServeHTTP(wr, req)
+		})
+	})
 
 	// Setup static file handling
 	fs := http.FileServer(http.Dir("static"))
@@ -113,17 +112,16 @@ func main() {
 		fmt.Fprint(w, helloWorld)
 	})
 
-	r.HandleFunc("/api/passkey/registerStart", passkey.BeginRegistration)
-	r.HandleFunc("/api/passkey/registerFinish", passkey.FinishRegistration)
-	r.HandleFunc("/api/passkey/loginStart", passkey.BeginLogin)
-	r.HandleFunc("/api/passkey/loginFinish", passkey.FinishLogin)
+	if os.Getenv("OAUTH") == "true" {
+		r.HandleFunc("/login/auth", middleware.LoginHandler)
+		r.HandleFunc("/login/callback", func(w http.ResponseWriter, r *http.Request) {
+			middleware.CallbackHandler(w, r, queries)
+		})
+		// Login protected paths
+		r.HandleFunc("/admin", AdminHandler(*queries)).Methods("GET").Handler(middleware.AuthMiddleware(http.HandlerFunc(AdminHandler(*queries))))
+		r.HandleFunc("/logout", LogoutHandler).Methods("GET")
 
-	// Login Page
-	r.HandleFunc("/login", catchAllAndRouteToStatic())
-
-	http.HandleFunc("/private", func(w http.ResponseWriter, r *http.Request) {
-		middleware.LoggedInMiddleware(http.HandlerFunc(PrivatePage)).ServeHTTP(w, r)
-	})
+	}
 
 	host := fmt.Sprintf("0.0.0.0:%d", port)
 	logger.Info("Your app is running on", "host", host)

@@ -7,22 +7,49 @@ package store
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"time"
 
+	uuid "github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 )
 
+const checkIfValidKey = `-- name: CheckIfValidKey :one
+SELECT id, email, name, display_name, credentials, google_id, created_at, updated_at, api_key, api_key_dev FROM users WHERE api_key = $1 OR api_key_dev = $1
+`
+
+func (q *Queries) CheckIfValidKey(ctx context.Context, apiKey sql.NullString) (User, error) {
+	row := q.db.QueryRowContext(ctx, checkIfValidKey, apiKey)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Name,
+		&i.DisplayName,
+		&i.Credentials,
+		&i.GoogleID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ApiKey,
+		&i.ApiKeyDev,
+	)
+	return i, err
+}
+
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (id, display_name, name, credentials)
-VALUES ($1, $2, $3, $4)
-RETURNING id, display_name, name, credentials, created_at, updated_at
+INSERT INTO users (id, display_name, name, credentials, google_id, email)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, email, name, display_name, credentials, google_id, created_at, updated_at, api_key, api_key_dev
 `
 
 type CreateUserParams struct {
-	ID          string
+	ID          uuid.UUID
 	DisplayName string
 	Name        string
-	Credentials pqtype.NullRawMessage
+	Credentials json.RawMessage
+	GoogleID    string
+	Email       string
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
@@ -31,15 +58,21 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		arg.DisplayName,
 		arg.Name,
 		arg.Credentials,
+		arg.GoogleID,
+		arg.Email,
 	)
 	var i User
 	err := row.Scan(
 		&i.ID,
-		&i.DisplayName,
+		&i.Email,
 		&i.Name,
+		&i.DisplayName,
 		&i.Credentials,
+		&i.GoogleID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ApiKey,
+		&i.ApiKeyDev,
 	)
 	return i, err
 }
@@ -59,7 +92,7 @@ DELETE FROM users
 WHERE id = $1
 `
 
-func (q *Queries) DeleteUser(ctx context.Context, id string) error {
+func (q *Queries) DeleteUser(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, deleteUser, id)
 	return err
 }
@@ -81,27 +114,119 @@ func (q *Queries) GetSession(ctx context.Context, id string) (Session, error) {
 	return i, err
 }
 
+const getUserByDevApiKey = `-- name: GetUserByDevApiKey :one
+SELECT id, email, name, display_name, credentials, google_id, created_at, updated_at, api_key, api_key_dev FROM users WHERE api_key_dev = $1
+`
+
+func (q *Queries) GetUserByDevApiKey(ctx context.Context, apiKeyDev sql.NullString) (User, error) {
+	row := q.db.QueryRowContext(ctx, getUserByDevApiKey, apiKeyDev)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Name,
+		&i.DisplayName,
+		&i.Credentials,
+		&i.GoogleID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ApiKey,
+		&i.ApiKeyDev,
+	)
+	return i, err
+}
+
+const getUserByEmail = `-- name: GetUserByEmail :one
+SELECT id, email, name, display_name, credentials, google_id, created_at, updated_at, api_key, api_key_dev FROM users WHERE email = $1
+`
+
+func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
+	row := q.db.QueryRowContext(ctx, getUserByEmail, email)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Name,
+		&i.DisplayName,
+		&i.Credentials,
+		&i.GoogleID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ApiKey,
+		&i.ApiKeyDev,
+	)
+	return i, err
+}
+
+const getUserByGoogleID = `-- name: GetUserByGoogleID :one
+SELECT id, email, name, display_name, credentials, google_id, created_at, updated_at, api_key, api_key_dev FROM users WHERE google_id = $1
+`
+
+func (q *Queries) GetUserByGoogleID(ctx context.Context, googleID string) (User, error) {
+	row := q.db.QueryRowContext(ctx, getUserByGoogleID, googleID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Name,
+		&i.DisplayName,
+		&i.Credentials,
+		&i.GoogleID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ApiKey,
+		&i.ApiKeyDev,
+	)
+	return i, err
+}
+
+const getUserByID = `-- name: GetUserByID :one
+SELECT id, email, name, display_name, credentials, google_id, created_at, updated_at, api_key, api_key_dev FROM users WHERE id = $1
+`
+
+func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
+	row := q.db.QueryRowContext(ctx, getUserByID, id)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Name,
+		&i.DisplayName,
+		&i.Credentials,
+		&i.GoogleID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ApiKey,
+		&i.ApiKeyDev,
+	)
+	return i, err
+}
+
 const getUserById = `-- name: GetUserById :one
-SELECT id, display_name, name, credentials, created_at, updated_at FROM users
+SELECT id, email, name, display_name, credentials, google_id, created_at, updated_at, api_key, api_key_dev FROM users
 WHERE id = $1 LIMIT 1
 `
 
-func (q *Queries) GetUserById(ctx context.Context, id string) (User, error) {
+func (q *Queries) GetUserById(ctx context.Context, id uuid.UUID) (User, error) {
 	row := q.db.QueryRowContext(ctx, getUserById, id)
 	var i User
 	err := row.Scan(
 		&i.ID,
-		&i.DisplayName,
+		&i.Email,
 		&i.Name,
+		&i.DisplayName,
 		&i.Credentials,
+		&i.GoogleID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ApiKey,
+		&i.ApiKeyDev,
 	)
 	return i, err
 }
 
 const getUserByName = `-- name: GetUserByName :one
-SELECT id, display_name, name, credentials, created_at, updated_at FROM users
+SELECT id, email, name, display_name, credentials, google_id, created_at, updated_at, api_key, api_key_dev FROM users
 WHERE name = $1 LIMIT 1
 `
 
@@ -110,17 +235,43 @@ func (q *Queries) GetUserByName(ctx context.Context, name string) (User, error) 
 	var i User
 	err := row.Scan(
 		&i.ID,
-		&i.DisplayName,
+		&i.Email,
 		&i.Name,
+		&i.DisplayName,
 		&i.Credentials,
+		&i.GoogleID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ApiKey,
+		&i.ApiKeyDev,
+	)
+	return i, err
+}
+
+const getUserByProdApiKey = `-- name: GetUserByProdApiKey :one
+SELECT id, email, name, display_name, credentials, google_id, created_at, updated_at, api_key, api_key_dev FROM users WHERE api_key = $1
+`
+
+func (q *Queries) GetUserByProdApiKey(ctx context.Context, apiKey sql.NullString) (User, error) {
+	row := q.db.QueryRowContext(ctx, getUserByProdApiKey, apiKey)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Name,
+		&i.DisplayName,
+		&i.Credentials,
+		&i.GoogleID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ApiKey,
+		&i.ApiKeyDev,
 	)
 	return i, err
 }
 
 const getUserByUsername = `-- name: GetUserByUsername :one
-SELECT id, display_name, name, credentials, created_at, updated_at FROM users
+SELECT id, email, name, display_name, credentials, google_id, created_at, updated_at, api_key, api_key_dev FROM users
 WHERE name = $1 LIMIT 1
 `
 
@@ -129,11 +280,15 @@ func (q *Queries) GetUserByUsername(ctx context.Context, name string) (User, err
 	var i User
 	err := row.Scan(
 		&i.ID,
-		&i.DisplayName,
+		&i.Email,
 		&i.Name,
+		&i.DisplayName,
 		&i.Credentials,
+		&i.GoogleID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ApiKey,
+		&i.ApiKeyDev,
 	)
 	return i, err
 }
@@ -174,14 +329,14 @@ SET display_name = $2,
     name = $3,
     credentials = $4
 WHERE id = $1
-RETURNING id, display_name, name, credentials, created_at, updated_at
+RETURNING id, email, name, display_name, credentials, google_id, created_at, updated_at, api_key, api_key_dev
 `
 
 type UpdateUserParams struct {
-	ID          string
+	ID          uuid.UUID
 	DisplayName string
 	Name        string
-	Credentials pqtype.NullRawMessage
+	Credentials json.RawMessage
 }
 
 func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error) {
@@ -194,11 +349,15 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 	var i User
 	err := row.Scan(
 		&i.ID,
-		&i.DisplayName,
+		&i.Email,
 		&i.Name,
+		&i.DisplayName,
 		&i.Credentials,
+		&i.GoogleID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ApiKey,
+		&i.ApiKeyDev,
 	)
 	return i, err
 }

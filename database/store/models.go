@@ -5,10 +5,21 @@
 package store
 
 import (
+	"database/sql"
+	"encoding/json"
 	"time"
 
+	uuid "github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 )
+
+type Log struct {
+	ID        uuid.UUID
+	UserID    uuid.UUID
+	ApiType   string
+	CreatedAt sql.NullTime
+	Comments  sql.NullString
+}
 
 type Session struct {
 	ID      string
@@ -18,10 +29,14 @@ type Session struct {
 }
 
 type User struct {
-	ID          string
-	DisplayName string
+	ID          uuid.UUID
+	Email       string
 	Name        string
-	Credentials pqtype.NullRawMessage
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	DisplayName string
+	Credentials json.RawMessage
+	GoogleID    string
+	CreatedAt   sql.NullTime
+	UpdatedAt   sql.NullTime
+	ApiKey      sql.NullString
+	ApiKeyDev   sql.NullString
 }

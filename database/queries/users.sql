@@ -1,6 +1,6 @@
 -- name: CreateUser :one
-INSERT INTO users (id, display_name, name, credentials)
-VALUES ($1, $2, $3, $4)
+INSERT INTO users (id, display_name, name, credentials, google_id, email)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING *;
 
 -- name: GetUserByName :one
@@ -41,3 +41,23 @@ RETURNING *;
 -- name: DeleteUser :exec
 DELETE FROM users
 WHERE id = $1;
+
+
+-- name: GetUserByGoogleID :one
+SELECT * FROM users WHERE google_id = $1;
+
+
+-- name: GetUserByProdApiKey :one
+SELECT * FROM users WHERE api_key = $1;
+
+-- name: GetUserByDevApiKey :one
+SELECT * FROM users WHERE api_key_dev = $1;
+
+-- name: GetUserByEmail :one
+SELECT * FROM users WHERE email = $1;
+
+-- name: GetUserByID :one
+SELECT * FROM users WHERE id = $1;
+
+-- name: CheckIfValidKey :one
+SELECT * FROM users WHERE api_key = $1 OR api_key_dev = $1;

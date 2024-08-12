@@ -12,13 +12,13 @@ packages:
 overrides:
   - db_type: uuid
     go_type:
-      import: github.com/gofrs/uuid/v3
+      import: github.com/google/uuid
       package: uuid
       type: UUID
     nullable: false
   - db_type: uuid
     go_type:
-      import: github.com/gofrs/uuid/v3
+      import: github.com/google/uuid
       package: uuid
       type: NullUUID
     nullable: true
