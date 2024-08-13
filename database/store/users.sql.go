@@ -8,56 +8,29 @@ package store
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"time"
 
 	uuid "github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 )
 
-const checkIfValidKey = `-- name: CheckIfValidKey :one
-SELECT id, email, name, display_name, credentials, google_id, created_at, updated_at, api_key, api_key_dev FROM users WHERE api_key = $1 OR api_key_dev = $1
-`
-
-func (q *Queries) CheckIfValidKey(ctx context.Context, apiKey sql.NullString) (User, error) {
-	row := q.db.QueryRowContext(ctx, checkIfValidKey, apiKey)
-	var i User
-	err := row.Scan(
-		&i.ID,
-		&i.Email,
-		&i.Name,
-		&i.DisplayName,
-		&i.Credentials,
-		&i.GoogleID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.ApiKey,
-		&i.ApiKeyDev,
-	)
-	return i, err
-}
-
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (id, display_name, name, credentials, google_id, email)
-VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, email, name, display_name, credentials, google_id, created_at, updated_at, api_key, api_key_dev
+INSERT INTO users (display_name, name, google_id, email)
+VALUES ($1, $2, $3, $4)
+RETURNING id, email, name, display_name, google_id, created_at, updated_at, api_key, api_key_dev, refreshtoken, accesstoken, expiry, tokentype
 `
 
 type CreateUserParams struct {
-	ID          uuid.UUID
 	DisplayName string
 	Name        string
-	Credentials json.RawMessage
 	GoogleID    string
 	Email       string
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
 	row := q.db.QueryRowContext(ctx, createUser,
-		arg.ID,
 		arg.DisplayName,
 		arg.Name,
-		arg.Credentials,
 		arg.GoogleID,
 		arg.Email,
 	)
@@ -67,12 +40,15 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.Email,
 		&i.Name,
 		&i.DisplayName,
-		&i.Credentials,
 		&i.GoogleID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ApiKey,
 		&i.ApiKeyDev,
+		&i.Refreshtoken,
+		&i.Accesstoken,
+		&i.Expiry,
+		&i.Tokentype,
 	)
 	return i, err
 }
@@ -97,6 +73,28 @@ func (q *Queries) DeleteUser(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
+const getAccessTokenByUserId = `-- name: GetAccessTokenByUserId :one
+SELECT accessToken FROM users WHERE id = $1
+`
+
+func (q *Queries) GetAccessTokenByUserId(ctx context.Context, id uuid.UUID) (sql.NullString, error) {
+	row := q.db.QueryRowContext(ctx, getAccessTokenByUserId, id)
+	var accesstoken sql.NullString
+	err := row.Scan(&accesstoken)
+	return accesstoken, err
+}
+
+const getRefreshTokenByUserId = `-- name: GetRefreshTokenByUserId :one
+SELECT refreshToken FROM users WHERE id = $1
+`
+
+func (q *Queries) GetRefreshTokenByUserId(ctx context.Context, id uuid.UUID) (sql.NullString, error) {
+	row := q.db.QueryRowContext(ctx, getRefreshTokenByUserId, id)
+	var refreshtoken sql.NullString
+	err := row.Scan(&refreshtoken)
+	return refreshtoken, err
+}
+
 const getSession = `-- name: GetSession :one
 SELECT id, user_id, data, expires FROM sessions
 WHERE id = $1 LIMIT 1
@@ -114,30 +112,8 @@ func (q *Queries) GetSession(ctx context.Context, id string) (Session, error) {
 	return i, err
 }
 
-const getUserByDevApiKey = `-- name: GetUserByDevApiKey :one
-SELECT id, email, name, display_name, credentials, google_id, created_at, updated_at, api_key, api_key_dev FROM users WHERE api_key_dev = $1
-`
-
-func (q *Queries) GetUserByDevApiKey(ctx context.Context, apiKeyDev sql.NullString) (User, error) {
-	row := q.db.QueryRowContext(ctx, getUserByDevApiKey, apiKeyDev)
-	var i User
-	err := row.Scan(
-		&i.ID,
-		&i.Email,
-		&i.Name,
-		&i.DisplayName,
-		&i.Credentials,
-		&i.GoogleID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.ApiKey,
-		&i.ApiKeyDev,
-	)
-	return i, err
-}
-
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, name, display_name, credentials, google_id, created_at, updated_at, api_key, api_key_dev FROM users WHERE email = $1
+SELECT id, email, name, display_name, google_id, created_at, updated_at, api_key, api_key_dev, refreshtoken, accesstoken, expiry, tokentype FROM users WHERE email = $1
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
@@ -148,18 +124,21 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.Email,
 		&i.Name,
 		&i.DisplayName,
-		&i.Credentials,
 		&i.GoogleID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ApiKey,
 		&i.ApiKeyDev,
+		&i.Refreshtoken,
+		&i.Accesstoken,
+		&i.Expiry,
+		&i.Tokentype,
 	)
 	return i, err
 }
 
 const getUserByGoogleID = `-- name: GetUserByGoogleID :one
-SELECT id, email, name, display_name, credentials, google_id, created_at, updated_at, api_key, api_key_dev FROM users WHERE google_id = $1
+SELECT id, email, name, display_name, google_id, created_at, updated_at, api_key, api_key_dev, refreshtoken, accesstoken, expiry, tokentype FROM users WHERE google_id = $1
 `
 
 func (q *Queries) GetUserByGoogleID(ctx context.Context, googleID string) (User, error) {
@@ -170,18 +149,21 @@ func (q *Queries) GetUserByGoogleID(ctx context.Context, googleID string) (User,
 		&i.Email,
 		&i.Name,
 		&i.DisplayName,
-		&i.Credentials,
 		&i.GoogleID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ApiKey,
 		&i.ApiKeyDev,
+		&i.Refreshtoken,
+		&i.Accesstoken,
+		&i.Expiry,
+		&i.Tokentype,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, name, display_name, credentials, google_id, created_at, updated_at, api_key, api_key_dev FROM users WHERE id = $1
+SELECT id, email, name, display_name, google_id, created_at, updated_at, api_key, api_key_dev, refreshtoken, accesstoken, expiry, tokentype FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
@@ -192,18 +174,21 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.Email,
 		&i.Name,
 		&i.DisplayName,
-		&i.Credentials,
 		&i.GoogleID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ApiKey,
 		&i.ApiKeyDev,
+		&i.Refreshtoken,
+		&i.Accesstoken,
+		&i.Expiry,
+		&i.Tokentype,
 	)
 	return i, err
 }
 
 const getUserById = `-- name: GetUserById :one
-SELECT id, email, name, display_name, credentials, google_id, created_at, updated_at, api_key, api_key_dev FROM users
+SELECT id, email, name, display_name, google_id, created_at, updated_at, api_key, api_key_dev, refreshtoken, accesstoken, expiry, tokentype FROM users
 WHERE id = $1 LIMIT 1
 `
 
@@ -215,18 +200,21 @@ func (q *Queries) GetUserById(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.Email,
 		&i.Name,
 		&i.DisplayName,
-		&i.Credentials,
 		&i.GoogleID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ApiKey,
 		&i.ApiKeyDev,
+		&i.Refreshtoken,
+		&i.Accesstoken,
+		&i.Expiry,
+		&i.Tokentype,
 	)
 	return i, err
 }
 
 const getUserByName = `-- name: GetUserByName :one
-SELECT id, email, name, display_name, credentials, google_id, created_at, updated_at, api_key, api_key_dev FROM users
+SELECT id, email, name, display_name, google_id, created_at, updated_at, api_key, api_key_dev, refreshtoken, accesstoken, expiry, tokentype FROM users
 WHERE name = $1 LIMIT 1
 `
 
@@ -238,40 +226,21 @@ func (q *Queries) GetUserByName(ctx context.Context, name string) (User, error) 
 		&i.Email,
 		&i.Name,
 		&i.DisplayName,
-		&i.Credentials,
 		&i.GoogleID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ApiKey,
 		&i.ApiKeyDev,
-	)
-	return i, err
-}
-
-const getUserByProdApiKey = `-- name: GetUserByProdApiKey :one
-SELECT id, email, name, display_name, credentials, google_id, created_at, updated_at, api_key, api_key_dev FROM users WHERE api_key = $1
-`
-
-func (q *Queries) GetUserByProdApiKey(ctx context.Context, apiKey sql.NullString) (User, error) {
-	row := q.db.QueryRowContext(ctx, getUserByProdApiKey, apiKey)
-	var i User
-	err := row.Scan(
-		&i.ID,
-		&i.Email,
-		&i.Name,
-		&i.DisplayName,
-		&i.Credentials,
-		&i.GoogleID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.ApiKey,
-		&i.ApiKeyDev,
+		&i.Refreshtoken,
+		&i.Accesstoken,
+		&i.Expiry,
+		&i.Tokentype,
 	)
 	return i, err
 }
 
 const getUserByUsername = `-- name: GetUserByUsername :one
-SELECT id, email, name, display_name, credentials, google_id, created_at, updated_at, api_key, api_key_dev FROM users
+SELECT id, email, name, display_name, google_id, created_at, updated_at, api_key, api_key_dev, refreshtoken, accesstoken, expiry, tokentype FROM users
 WHERE name = $1 LIMIT 1
 `
 
@@ -283,14 +252,31 @@ func (q *Queries) GetUserByUsername(ctx context.Context, name string) (User, err
 		&i.Email,
 		&i.Name,
 		&i.DisplayName,
-		&i.Credentials,
 		&i.GoogleID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ApiKey,
 		&i.ApiKeyDev,
+		&i.Refreshtoken,
+		&i.Accesstoken,
+		&i.Expiry,
+		&i.Tokentype,
 	)
 	return i, err
+}
+
+const insertAccessTokenByUserId = `-- name: InsertAccessTokenByUserId :exec
+UPDATE users SET accessToken = $1 WHERE id = $2
+`
+
+type InsertAccessTokenByUserIdParams struct {
+	Accesstoken sql.NullString
+	ID          uuid.UUID
+}
+
+func (q *Queries) InsertAccessTokenByUserId(ctx context.Context, arg InsertAccessTokenByUserIdParams) error {
+	_, err := q.db.ExecContext(ctx, insertAccessTokenByUserId, arg.Accesstoken, arg.ID)
+	return err
 }
 
 const insertIntoSessions = `-- name: InsertIntoSessions :one
@@ -323,28 +309,40 @@ func (q *Queries) InsertIntoSessions(ctx context.Context, arg InsertIntoSessions
 	return i, err
 }
 
-const updateUser = `-- name: UpdateUser :one
-UPDATE users
-SET display_name = $2,
-    name = $3,
-    credentials = $4
-WHERE id = $1
-RETURNING id, email, name, display_name, credentials, google_id, created_at, updated_at, api_key, api_key_dev
+const insertRefreshTokenByUserId = `-- name: InsertRefreshTokenByUserId :exec
+UPDATE users SET refreshToken = $1 WHERE id = $2
 `
 
-type UpdateUserParams struct {
-	ID          uuid.UUID
-	DisplayName string
-	Name        string
-	Credentials json.RawMessage
+type InsertRefreshTokenByUserIdParams struct {
+	Refreshtoken sql.NullString
+	ID           uuid.UUID
 }
 
-func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error) {
-	row := q.db.QueryRowContext(ctx, updateUser,
+func (q *Queries) InsertRefreshTokenByUserId(ctx context.Context, arg InsertRefreshTokenByUserIdParams) error {
+	_, err := q.db.ExecContext(ctx, insertRefreshTokenByUserId, arg.Refreshtoken, arg.ID)
+	return err
+}
+
+const insertTokenByUserID = `-- name: InsertTokenByUserID :one
+UPDATE users SET accessToken = $1, refreshToken = $2, expiry = $3, tokenType = $4 WHERE id = $5
+RETURNING id, email, name, display_name, google_id, created_at, updated_at, api_key, api_key_dev, refreshtoken, accesstoken, expiry, tokentype
+`
+
+type InsertTokenByUserIDParams struct {
+	Accesstoken  sql.NullString
+	Refreshtoken sql.NullString
+	Expiry       sql.NullTime
+	Tokentype    sql.NullString
+	ID           uuid.UUID
+}
+
+func (q *Queries) InsertTokenByUserID(ctx context.Context, arg InsertTokenByUserIDParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, insertTokenByUserID,
+		arg.Accesstoken,
+		arg.Refreshtoken,
+		arg.Expiry,
+		arg.Tokentype,
 		arg.ID,
-		arg.DisplayName,
-		arg.Name,
-		arg.Credentials,
 	)
 	var i User
 	err := row.Scan(
@@ -352,12 +350,77 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		&i.Email,
 		&i.Name,
 		&i.DisplayName,
-		&i.Credentials,
 		&i.GoogleID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ApiKey,
 		&i.ApiKeyDev,
+		&i.Refreshtoken,
+		&i.Accesstoken,
+		&i.Expiry,
+		&i.Tokentype,
+	)
+	return i, err
+}
+
+const updateExpiryByUserId = `-- name: UpdateExpiryByUserId :one
+UPDATE users SET expiry = $1 WHERE id = $2
+RETURNING id, email, name, display_name, google_id, created_at, updated_at, api_key, api_key_dev, refreshtoken, accesstoken, expiry, tokentype
+`
+
+type UpdateExpiryByUserIdParams struct {
+	Expiry sql.NullTime
+	ID     uuid.UUID
+}
+
+func (q *Queries) UpdateExpiryByUserId(ctx context.Context, arg UpdateExpiryByUserIdParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, updateExpiryByUserId, arg.Expiry, arg.ID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Name,
+		&i.DisplayName,
+		&i.GoogleID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ApiKey,
+		&i.ApiKeyDev,
+		&i.Refreshtoken,
+		&i.Accesstoken,
+		&i.Expiry,
+		&i.Tokentype,
+	)
+	return i, err
+}
+
+const updateTokenTypeByUserId = `-- name: UpdateTokenTypeByUserId :one
+UPDATE users SET tokenType = $1 WHERE id = $2
+RETURNING id, email, name, display_name, google_id, created_at, updated_at, api_key, api_key_dev, refreshtoken, accesstoken, expiry, tokentype
+`
+
+type UpdateTokenTypeByUserIdParams struct {
+	Tokentype sql.NullString
+	ID        uuid.UUID
+}
+
+func (q *Queries) UpdateTokenTypeByUserId(ctx context.Context, arg UpdateTokenTypeByUserIdParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, updateTokenTypeByUserId, arg.Tokentype, arg.ID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Name,
+		&i.DisplayName,
+		&i.GoogleID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ApiKey,
+		&i.ApiKeyDev,
+		&i.Refreshtoken,
+		&i.Accesstoken,
+		&i.Expiry,
+		&i.Tokentype,
 	)
 	return i, err
 }

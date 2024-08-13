@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"database/sql"
 	"emaildrafter/database/store"
 	"emaildrafter/internal/env"
@@ -23,6 +24,7 @@ var (
 )
 
 func main() {
+	env.LoadFromFile(".env")
 	port := env.GetAsIntElseAlt("PORT", 9005)
 	mode := env.GetAsStringElseAlt("ENV", "dev")
 
@@ -42,7 +44,8 @@ func main() {
 	if mode == "dev" {
 		dbHost = "postgres://joshtheeuf:jc194980@localhost:5432/emaildrafter?sslmode=disable"
 	} else {
-
+		// this needs to be modified for prod db
+		dbHost = "postgres://joshtheeuf:jc194980@localhost:5432/emaildrafter?sslmode=disable"
 	}
 	// setup a database handler queries
 	db, dbConnectionError := sql.Open("postgres", dbHost)
@@ -111,21 +114,44 @@ func main() {
 		w.Header().Set("Content-Type", "text/html")
 		fmt.Fprint(w, helloWorld)
 	})
+	log.Println(env.GetAsString("OAUTH"))
 
-	if os.Getenv("OAUTH") == "true" {
-		r.HandleFunc("/login/auth", middleware.LoginHandler)
-		r.HandleFunc("/login/callback", func(w http.ResponseWriter, r *http.Request) {
-			middleware.CallbackHandler(w, r, queries)
-		})
-		// Login protected paths
-		r.HandleFunc("/admin", AdminHandler(*queries)).Methods("GET").Handler(middleware.AuthMiddleware(http.HandlerFunc(AdminHandler(*queries))))
-		r.HandleFunc("/logout", LogoutHandler).Methods("GET")
+	r.HandleFunc("/login", ServeLoginPage)
+	r.HandleFunc("/login/auth", middleware.LoginHandler)
+	r.HandleFunc("/login/callback", func(w http.ResponseWriter, r *http.Request) {
+		middleware.CallbackHandler(w, r, queries)
+	})
+	// Login protected paths
+	//r.HandleFunc("/admin", AdminHandler(*queries)).Methods("GET").Handler(middleware.AuthMiddleware(http.HandlerFunc(AdminHandler(*queries))))
+	r.HandleFunc("/logout", LogoutHandler).Methods("GET")
 
+	if mode == "dev" {
+		cert, err := tls.LoadX509KeyPair("cert.pem", "key.pem")
+		if err != nil {
+			logger.Error("Error loading certificate and key", "error", err)
+			return
+		}
+
+		// Create a TLS configuration
+		tlsConfig := &tls.Config{
+			Certificates: []tls.Certificate{cert},
+		}
+
+		// Create a server with the TLS configuration
+		server := &http.Server{
+			Addr:      ":8080", // Or your desired port
+			Handler:   r,
+			TLSConfig: tlsConfig,
+		}
+
+		// Start the server
+		logger.Info("Your app is running on", "host", "https://localhost:8080")
+		log.Fatal(server.ListenAndServeTLS("cert.pem", "key.pem")) // Serve TLS with correct file paths
+	} else {
+		host := fmt.Sprintf("0.0.0.0:%d", port)
+		logger.Info("Your app is running on", "host", host)
+		log.Fatal(http.ListenAndServe(host, r))
 	}
-
-	host := fmt.Sprintf("0.0.0.0:%d", port)
-	logger.Info("Your app is running on", "host", host)
-	log.Fatal(http.ListenAndServe(host, r))
 }
 
 func PrivatePage(w http.ResponseWriter, r *http.Request) {

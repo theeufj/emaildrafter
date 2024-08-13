@@ -6,7 +6,6 @@ package store
 
 import (
 	"database/sql"
-	"encoding/json"
 	"time"
 
 	uuid "github.com/google/uuid"
@@ -29,14 +28,17 @@ type Session struct {
 }
 
 type User struct {
-	ID          uuid.UUID
-	Email       string
-	Name        string
-	DisplayName string
-	Credentials json.RawMessage
-	GoogleID    string
-	CreatedAt   sql.NullTime
-	UpdatedAt   sql.NullTime
-	ApiKey      sql.NullString
-	ApiKeyDev   sql.NullString
+	ID           uuid.UUID
+	Email        string
+	Name         string
+	DisplayName  string
+	GoogleID     string
+	CreatedAt    sql.NullTime
+	UpdatedAt    sql.NullTime
+	ApiKey       sql.NullString
+	ApiKeyDev    sql.NullString
+	Refreshtoken sql.NullString
+	Accesstoken  sql.NullString
+	Expiry       sql.NullTime
+	Tokentype    sql.NullString
 }
