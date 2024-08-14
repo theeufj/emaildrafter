@@ -28,7 +28,7 @@ var (
 
 func main() {
 	env.LoadFromFile(".env")
-	port := env.GetAsIntElseAlt("PORT", 9005)
+	port := env.GetAsStringElseAlt("PORT", 9005)
 	mode := env.GetAsStringElseAlt("ENV", "dev")
 	log.SetFlags(log.LstdFlags | log.Lshortfile) // Include file and line number
 	log.SetOutput(os.Stdout)                     // Send logs to standard output
