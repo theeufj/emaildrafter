@@ -164,7 +164,7 @@ func main() {
 
 		// Create a server with the TLS configuration
 		server := &http.Server{
-			Addr:      ":8080", // Or your desired port
+			Addr:      port, // Or your desired port
 			Handler:   r,
 			TLSConfig: tlsConfig,
 		}
@@ -186,7 +186,7 @@ func main() {
 
 		// Create a server with the TLS configuration
 		server := &http.Server{
-			Addr:      ":8080", // Or your desired port
+			Addr:      port, // Or your desired port
 			Handler:   r,
 			TLSConfig: tlsConfig,
 		}
