@@ -50,7 +50,7 @@ func main() {
 		dbHost = "postgres://joshtheeuf:jc194980@localhost:5432/emaildrafter?sslmode=disable"
 	} else {
 		// this needs to be modified for prod db
-		dbHost = "postgres://joshtheeuf:jc194980@localhost:5432/emaildrafter?sslmode=disable"
+		dbHost = "postgres://postgres:jc194980!@ec2-13-210-207-191.ap-southeast-2.compute.amazonaws.com:5432/emaildrafter"
 	}
 	// setup a database handler queries
 	db, dbConnectionError := sql.Open("postgres", dbHost)
