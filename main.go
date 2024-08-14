@@ -151,7 +151,7 @@ func main() {
 	}()
 
 	if mode == "dev" {
-		cert, err := tls.LoadX509KeyPair("cert.pem", "key.pem")
+		cert, err := tls.LoadX509KeyPair("/etc/letsencrypt/live/www.aidrafter.xyz/fullchain.pem", "/etc/letsencrypt/live/www.aidrafter.xyz/privkey.pem")
 		if err != nil {
 			logger.Error("Error loading certificate and key", "error", err)
 			return
@@ -171,7 +171,7 @@ func main() {
 
 		// Start the server
 		logger.Info("Your app is running on", "host", "https://localhost:8080")
-		log.Fatal(server.ListenAndServeTLS("cert.pem", "key.pem")) // Serve TLS with correct file paths
+		log.Fatal(server.ListenAndServeTLS("/etc/letsencrypt/live/www.aidrafter.xyz/fullchain.pem", "/etc/letsencrypt/live/www.aidrafter.xyz/privkey.pem")) // Serve TLS with correct file paths
 	} else {
 		host := fmt.Sprintf("0.0.0.0:%d", port)
 		logger.Info("Your app is running on", "host", host)
