@@ -84,6 +84,47 @@ func (q *Queries) GetAccessTokenByUserId(ctx context.Context, id uuid.UUID) (sql
 	return accesstoken, err
 }
 
+const getAllUsers = `-- name: GetAllUsers :many
+Select id, email, name, display_name, google_id, created_at, updated_at, api_key, api_key_dev, refreshtoken, accesstoken, expiry, tokentype from Users
+`
+
+func (q *Queries) GetAllUsers(ctx context.Context) ([]User, error) {
+	rows, err := q.db.QueryContext(ctx, getAllUsers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []User{}
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.Name,
+			&i.DisplayName,
+			&i.GoogleID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ApiKey,
+			&i.ApiKeyDev,
+			&i.Refreshtoken,
+			&i.Accesstoken,
+			&i.Expiry,
+			&i.Tokentype,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getRefreshTokenByUserId = `-- name: GetRefreshTokenByUserId :one
 SELECT refreshToken FROM users WHERE id = $1
 `

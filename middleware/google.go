@@ -15,7 +15,9 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/oauth2"
@@ -36,6 +38,8 @@ func InitializeOAuth() error {
 	if clientID == "" || clientSecret == "" || redirectURI == "" {
 		return fmt.Errorf("missing required environment variables: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, or GOOGLE_REDIRECT_URI")
 	}
+
+	log.Printf("OAuth2 Config: ClientID=%s, RedirectURI=%s", clientID, redirectURI)
 
 	config = &oauth2.Config{
 		ClientID:     clientID,
@@ -221,59 +225,55 @@ func handleUser(ctx context.Context, queries *store.Queries, userInfo map[string
 	return nil
 }
 
-func handleRefreshToken(w http.ResponseWriter, r *http.Request, user_id uuid.UUID, q store.Queries) (err error) {
-	// 1. Retrieve refresh token from storage
-	refreshToken, err := q.GetRefreshTokenByUserId(r.Context(), user_id) // Replace with your logic for getting user ID
+func HandleRefreshToken(user_id uuid.UUID, q store.Queries) (err error, token *oauth2.Token) {
+	if err := InitializeOAuth(); err != nil {
+		log.Printf("Error initializing OAuth: %v", err)
+		return err, nil
+	}
+	refreshToken, err := q.GetRefreshTokenByUserId(context.TODO(), user_id)
 	if err != nil {
-		// Handle error, e.g., user not found or no refresh token stored
-		http.Error(w, "Invalid refresh token", http.StatusUnauthorized)
-		return
+		log.Printf("Error retrieving refresh token: %v", err)
+		return err, nil
 	}
 
-	// 2. Create a new token source with the refresh token
 	tokenSource := config.TokenSource(context.Background(), &oauth2.Token{
 		RefreshToken: refreshToken.String,
 	})
 
-	// 3. Exchange refresh token for new access token
-	newToken, err := tokenSource.Token()
+	newToken, err := refreshTokenWithRetry(tokenSource)
 	if err != nil {
-		// Handle error, e.g., invalid refresh token or API rate limits
-		http.Error(w, "Failed to refresh token", http.StatusInternalServerError)
-		return
+		log.Printf("Error refreshing token: %v", err)
+		return err, nil
 	}
 
 	// 4. Store new access and refresh tokens (optional)
 	// Depending on your security strategy, you may choose to update the stored refresh token
 	// or generate a new one here. Implement logic based on your requirements.
 
-	err = q.InsertAccessTokenByUserId(r.Context(), store.InsertAccessTokenByUserIdParams{
+	_, err = q.InsertTokenByUserID(context.TODO(), store.InsertTokenByUserIDParams{
+		ID: user_id,
 		Accesstoken: sql.NullString{
 			String: newToken.AccessToken,
 			Valid:  true,
 		},
-		ID: user_id,
-	})
-
-	if err != nil {
-		log.Println(err)
-	}
-
-	err = q.InsertRefreshTokenByUserId(r.Context(), store.InsertRefreshTokenByUserIdParams{
 		Refreshtoken: sql.NullString{
 			String: newToken.RefreshToken,
+			Valid:  true},
+		Expiry: sql.NullTime{
+			Time:  newToken.Expiry,
+			Valid: true,
+		},
+		Tokentype: sql.NullString{
+			String: newToken.TokenType,
 			Valid:  true,
 		},
-		ID: user_id,
 	})
-
 	if err != nil {
-		log.Println(err)
+		return err, nil
 	}
 
 	// 5. Return new access token to client
-	json.NewEncoder(w).Encode(newToken.AccessToken)
-	return nil
+	return nil, newToken
 }
 
 // GenerateKey generates a random key for encryption
@@ -347,4 +347,18 @@ func pkcs7Padding(data []byte, blockSize int) []byte {
 func pkcs7Unpadding(data []byte) []byte {
 	padding := int(data[len(data)-1])
 	return data[:len(data)-padding]
+}
+
+func refreshTokenWithRetry(tokenSource oauth2.TokenSource) (*oauth2.Token, error) {
+	var token *oauth2.Token
+	var err error
+	for i := 0; i < 3; i++ { // Try up to 3 times
+		token, err = tokenSource.Token()
+		if err == nil {
+			return token, nil
+		}
+		log.Printf("Error refreshing token (attempt %d): %v", i+1, err)
+		time.Sleep(time.Duration(math.Pow(2, float64(i))) * time.Second) // Exponential backoff
+	}
+	return nil, err
 }

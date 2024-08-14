@@ -7,13 +7,16 @@ import (
 	"emaildrafter/database/store"
 	"emaildrafter/internal/env"
 	"emaildrafter/internal/flash"
+	"emaildrafter/internal/library"
 	"emaildrafter/middleware"
 	"fmt"
 	"log"
 	"log/slog"
 	"net/http"
 	"os"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	_ "github.com/lib/pq"
 )
@@ -27,6 +30,8 @@ func main() {
 	env.LoadFromFile(".env")
 	port := env.GetAsIntElseAlt("PORT", 9005)
 	mode := env.GetAsStringElseAlt("ENV", "dev")
+	log.SetFlags(log.LstdFlags | log.Lshortfile) // Include file and line number
+	log.SetOutput(os.Stdout)                     // Send logs to standard output
 
 	opts := &slog.HandlerOptions{
 		AddSource: true,
@@ -125,6 +130,26 @@ func main() {
 	//r.HandleFunc("/admin", AdminHandler(*queries)).Methods("GET").Handler(middleware.AuthMiddleware(http.HandlerFunc(AdminHandler(*queries))))
 	r.HandleFunc("/logout", LogoutHandler).Methods("GET")
 
+	// We need to trigger Drafter every 15 minuutes as a go routine
+	go func() {
+		for {
+			// get all users
+			users, err := queries.GetAllUsers(context.TODO())
+			if err != nil {
+				log.Println(err)
+			}
+			// loop through users and call the drafter function
+			for _, user := range users {
+				//only if there is a refresh token for the user do we run this
+				if user.Refreshtoken.Valid {
+					Drafter(*queries, user.ID)
+				}
+			}
+			// sleep for 15 minutes
+			time.Sleep(15 * time.Minute)
+		}
+	}()
+
 	if mode == "dev" {
 		cert, err := tls.LoadX509KeyPair("cert.pem", "key.pem")
 		if err != nil {
@@ -157,4 +182,20 @@ func main() {
 func PrivatePage(w http.ResponseWriter, r *http.Request) {
 	// just show "Hello, World!" for now
 	_, _ = w.Write([]byte("Hello, World!"))
+}
+
+// This function will handle calling the gmail compose task, as well as refresh the token
+func Drafter(queries store.Queries, user_id uuid.UUID) {
+	err, Token := middleware.HandleRefreshToken(user_id, queries)
+	if err != nil {
+		log.Println(err)
+	}
+	// get the user by their user_id
+	user, err := queries.GetUserByID(context.TODO(), user_id)
+	if err != nil {
+		log.Println(err)
+	}
+	// compose the last group of emails
+	library.GmailCompose(Token, user)
+
 }

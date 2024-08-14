@@ -30,8 +30,8 @@ CREATE TABLE LOGS(
 
 Alter TABLE LOGS ADD COLUMN Comments VARCHAR(255);
 
-Alter table Users add column refreshToken VARCHAR(255);
-Alter table Users add column accessToken VARCHAR(255);
+Alter table Users add column refreshToken TEXT;
+Alter table Users add column accessToken TEXT;
 Alter table Users add column expiry TIME;
-Alter table Users add column tokenType VARCHAR(255);
+Alter table Users add column tokenType TEXT;
 

@@ -69,3 +69,7 @@ RETURNING *;
 -- name: UpdateTokenTypeByUserId :one
 UPDATE users SET tokenType = $1 WHERE id = $2
 RETURNING *;
+
+
+-- name: GetAllUsers :many
+Select * from Users;

@@ -189,6 +189,7 @@ func DraftResponse(bodyMessage string, user store.User) (response string) {
 		log.Fatal(err)
 	}
 	defer client.Close()
+	log.Println("Line 192 in Draft Response")
 
 	prompt := prompt_string_creator(user, bodyMessage)
 	log.Println("prompt is: " + prompt)
@@ -415,8 +416,6 @@ func GetMessages(srv *gmail.Service, howMany uint) ([]*gmail.Message, error) {
 
 	// Get the messages
 	inbox, err := srv.Users.Messages.List("me").MaxResults(int64(howMany)).Do()
-	log.Println(inbox)
-	log.Println(err)
 
 	if err != nil {
 		return msgSlice, err
