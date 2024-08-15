@@ -169,13 +169,14 @@ func createDraft(metaData *PartialMetadata, response, threadId string) *gmail.Dr
 
 // // this is going to be used to generate the prompt for an email response.
 func prompt_string_creator(user store.User, email string) string {
-	// if user.PromptCompany.String == "" && user.PromptJobTitle.String == "" {
-	// 	prompt = "You are the " + user.PromptJobTitle.String + " of " + user.PromptCompany.String + " You must respond to the this email in a concise, accurate . While also responding with the same tone to the sender. " + email + ". " + " Sign off as " + user.Fullname.String + "."
-	// } else {
-	// 	prompt = "You must respond to the this email in a concise, accurate . While also responding with the same tone to the sender. " + email + ". " + " Sign off as " + user.Fullname.String + "."
-	// }
+	var prompt string
+	if user.Persona.Valid {
+		prompt = "The following is your persona "+ user.Persona.String + " You must respond to the this email in a concise, accurate . While also responding with the same tone to the sender. " + email + ". " + " Sign off as " + user.Fullname.String + "."
+	} else {
+		prompt = "You must respond to the this email in a concise, accurate . While also responding with the same tone to the sender. " + email + ". " + " Sign off as " + user.Fullname.String + "."
+	}
 
-	prompt := "You must respond to the this email in a concise, accurate . While also responding with the same tone to the sender. " + email + ". " + " Sign off as " + user.Name + "."
+	//prompt := "You must respond to the this email in a concise, accurate . While also responding with the same tone to the sender. " + email + ". " + " Sign off as " + user.Name + "."
 	return prompt
 }
 
