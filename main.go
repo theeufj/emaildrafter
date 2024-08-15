@@ -9,7 +9,6 @@ import (
 	"emaildrafter/internal/flash"
 	"emaildrafter/internal/library"
 	"emaildrafter/middleware"
-	"fmt"
 	"log"
 	"log/slog"
 	"net/http"
@@ -87,38 +86,9 @@ func main() {
 	})
 
 	// Entry route
-	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		helloWorld := `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tim Stack</title>
-    <link rel="icon" type="image/x-icon" href="static/img/favicon.ico">
-    <script
-      src="https://unpkg.com/htmx.org@1.9.10"
-      integrity="sha384-D1Kt99CQMDuVetoL1lrYwg5t+9QdHe7NLX/SoJYkXDFfX37iInKRy5xLSi8nO7UC"
-      crossorigin="anonymous"
-    ></script>
-    <link href="/static/css/main.css" rel="stylesheet" />
-</head>
-<body>
- <div hx-get="/notifications" hx-trigger="load" hx-swap="outerHTML">
-       <!-- USE THIS DIV FOR FLASH NOTIFICATIONS -->
-</div>  
-<div class="container mx-auto h-screen flex flex-col justify-center items-center">
-  <h1 class="text-6xl">
-    Welcome to
-    <strong class="bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-purple-500">
-      NickStack
-    </strong> 👋
-  </h1>
-</div>
-</body>
-`
-		w.Header().Set("Content-Type", "text/html")
-		fmt.Fprint(w, helloWorld)
-	})
+	r.HandleFunc("/", catchAllAndRouteToStatic())
+	r.HandleFunc("/terms_of_use", catchAllAndRouteToStatic())
+	r.HandleFunc("/Privacy_Policy_v2", catchAllAndRouteToStatic())
 	log.Println(env.GetAsString("OAUTH"))
 
 	r.HandleFunc("/login", ServeLoginPage)
@@ -186,7 +156,7 @@ func main() {
 
 		// Create a server with the TLS configuration
 		server := &http.Server{
-			Addr:      ":"+port, // Or your desired port
+			Addr:      ":" + port, // Or your desired port
 			Handler:   r,
 			TLSConfig: tlsConfig,
 		}

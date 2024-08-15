@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"os"
 )
 
 var (
@@ -19,8 +20,23 @@ func catchAllAndRouteToStatic() func(http.ResponseWriter, *http.Request) {
 			http.ServeFile(w, r, "static/index.html")
 		case r.URL.Path == "/robots.txt":
 			http.ServeFile(w, r, "static/robots.txt")
+		case r.URL.Path == "/favicon.ico":
+			http.ServeFile(w, r, "static/favicon.ico")
 		default:
-			http.ServeFile(w, r, "static/"+r.URL.Path+".html")
+			// Check for HTML files first
+			if _, err := os.Stat("static/" + r.URL.Path + ".html"); err == nil {
+				http.ServeFile(w, r, "static/"+r.URL.Path+".html")
+				return
+			}
+
+			// Check for PDF files
+			if _, err := os.Stat("static/" + r.URL.Path + ".pdf"); err == nil {
+				http.ServeFile(w, r, "static/"+r.URL.Path+".pdf")
+				return
+			}
+
+			// If neither HTML nor PDF found, serve a 404
+			http.NotFound(w, r)
 		}
 	}
 }
