@@ -7,6 +7,9 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"database/sql"
+	"github.com/google/uuid"
+	"encoding/json"
 )
 
 var (
@@ -58,6 +61,7 @@ func AdminHandler(q store.Queries) func(http.ResponseWriter, *http.Request) {
 			log.Println(err)
 		}
 		user, err := q.GetUserByGoogleID(r.Context(), cookie.Value)
+		log.Println(user.Persona)
 		if err != nil {
 			log.Println(err)
 		}
@@ -102,4 +106,93 @@ func LogoutHandler(w http.ResponseWriter, r *http.Request) {
 func GetUser(r http.Request, q store.Queries) (store.User, error) {
 	// Read the JSON request body
 	return store.User{}, nil
+}
+
+type SetPersonaResponse struct {
+        Success bool   `json:"success"`
+        Message string `json:"message"`
+}
+
+func SetPersonas(q store.Queries) func(http.ResponseWriter, *http.Request) {
+        return func(w http.ResponseWriter, r *http.Request) {
+                // Parse the form.
+				var reqBody struct {
+					UserID string `json:"user_id"`
+					Persona string `json:"persona`
+			}
+			log.Println("This is a cool log")
+			log.Println(r.Body)
+				err := json.NewDecoder(r.Body).Decode(&reqBody)
+				if err != nil {
+					http.Error(w, "Invalid request body", http.StatusBadRequest)
+					return
+				}
+                // Convert user ID to UUID
+                userID, err := uuid.Parse(reqBody.UserID)
+                if err != nil {
+                        http.Error(w, "Invalid user ID", http.StatusBadRequest)
+                        return
+                }
+
+                // Update the persona in the database
+                _,err = q.SetPersona(r.Context(), store.SetPersonaParams{
+                        Persona: sql.NullString{
+                                String: reqBody.Persona,
+                                Valid:  true,
+                        },
+                        ID: userID,
+                })
+                if err != nil {
+                        // Handle database error appropriately (e.g., log, return specific error)
+                        http.Error(w, "Failed to set persona", http.StatusInternalServerError)
+                        return
+                }
+
+                // Respond with success JSON
+                response := SetPersonaResponse{
+                        Success: true,
+                        Message: "Persona set successfully",
+                }
+                w.Header().Set("Content-Type", "application/json")
+                w.WriteHeader(http.StatusOK)
+                json.NewEncoder(w).Encode(response)
+        }
+}
+
+func Unlink(q store.Queries) func(http.ResponseWriter, *http.Request) {
+        return func(w http.ResponseWriter, r *http.Request) {
+                // Parse the request body (assuming JSON)
+                var reqBody struct {
+                        UserID string `json:"user_id"`
+                }
+                err := json.NewDecoder(r.Body).Decode(&reqBody)
+                if err != nil {
+                        http.Error(w, "Invalid request body", http.StatusBadRequest)
+                        return
+                }
+
+                // Convert user ID to UUID
+                userID, err := uuid.Parse(reqBody.UserID)
+                if err != nil {
+                        http.Error(w, "Invalid user ID", http.StatusBadRequest)
+                        return
+                }
+
+                // Unlink the user (implementation depends on your database schema)
+               _,err = q.RemoveTokens(r.Context(), userID) // Replace with your query function
+                if err != nil {
+                        // Handle database error appropriately
+                        http.Error(w, "Failed to unlink user", http.StatusInternalServerError)
+                        return
+                }
+
+                // Respond with success JSON
+                response := SetPersonaResponse{
+                        Success: true,
+                        Message: "User unlinked successfully",
+                }
+                w.Header().Set("Content-Type", "application/json")
+                w.WriteHeader(http.StatusOK)
+                json.NewEncoder(w).Encode(response)
+        }
 }

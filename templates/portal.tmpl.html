@@ -3,105 +3,95 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RestfulDevTools - Customer Portal</title>
+    <title>AI Drafter Customer Portal</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdn.datatables.net/2.1.3/css/dataTables.dataTables.css" />
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.datatables.net/2.1.3/js/dataTables.js"></script>
 </head>
-<body class="bg-gray-100 font-sans flex flex-col h-screen justify-between">
-    <nav class="bg-white shadow-lg">
-        <div class="max-w-6xl mx-auto px-4">
-            <div class="flex justify-between">
-                <div class="flex space-x-7">
-                    <div>
-                        <a href="/" class="flex items-center py-4 px-2">
-                            <span class="font-semibold text-gray-500 text-lg">RestfulDevTools</span>
-                        </a>
-                    </div>
+<body class="bg-gray-100 p-6">
+    <div class="max-w-2xl mx-auto bg-white p-8 rounded-lg shadow-md">
+        <h1 class="text-3xl font-bold text-gray-800 mb-6">AI Drafter Customer Portal</h1>
+        
+        <section class="mb-8">
+            <h2 class="text-2xl font-semibold text-gray-700 mb-4">Account Management</h2>
+            Email Linked: {{.User.Email}}
+            <br>
+            <button id="unlinkGmail" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded">
+                Unlink Gmail Account 
+            </button>
+        </section>
+        
+        <section>
+            <h2 class="text-2xl font-semibold text-gray-700 mb-4">User Persona Setup</h2>
+            <p>Tell us a little about yourself. This will help the make the drafts tailored to you.</p>
+            <form id="personaForm" class="space-y-4">
+                <div>
+                    <input type="hidden" name="user_id" value="{{.User.ID}}">
+                    <label for="persona" class="block text-sm font-medium text-gray-700 mb-2">Enter your persona:</label>
+                    <textarea id="persona" name="persona" rows="4" class="w-full px-3 py-2 text-gray-700 border rounded-lg focus:outline-none" placeholder="Describe your persona here..." >{{.User.Persona.String}}</textarea>
                 </div>
-                <div class="hidden md:flex items-center space-x-3">
-                    <a href="/logout" class="py-2 px-2 font-medium text-gray-500 rounded hover:bg-blue-500 hover:text-white transition duration-300">Logout</a>
-                    <a href="/settings" class="py-2 px-2 font-medium text-gray-500 rounded hover:bg-blue-500 hover:text-white transition duration-300">Settings</a>
-                </div>
-            </div>
-        </div>
-    </nav>
+                <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">
+                    Set Persona
+                </button>
+            </form>
+        </section>
+        
+        <div id="message" class="mt-6 text-sm font-semibold"></div>
+    </div>
 
-    <main class="max-w-6xl mx-auto mt-10 px-4 h-full flex">
-        <aside class="bg-gray-200 p-4 rounded-lg w-64 mr-4">
-            <h2 class="text-xl font-bold text-gray-800 mb-4">Customer Portal</h2>
-            <ul class="space-y-2">
-                <li>
-                    <a href="/contact" class="block py-2 px-4 rounded-md hover:bg-gray-300">Leave Feedback</a>
-                </li>
-            </ul>
-        </aside>
-
-        <div class="flex-grow">
-            <h1 class="text-3xl font-bold text-gray-800 mb-4">Welcome to Your Customer Portal</h1>
-            <p class="text-xl text-gray-600 mb-8">Here you can manage your account, access your usage details, and provide feedback.</p>
-            <!-- This is where they can find their api keys -->
-             <div class="bg-white p-6 rounded-lg shadow-md mb-4">
-                <h2 class="text-2xl font-semibold text-gray-800 mb-4">API Keys</h2>
-                <p class="text-gray-600">Your API keys are essential for accessing our services. Please keep them secure.</p>
-                <ul class="space-y-2">
-                    <li>
-                        <span class="font-bold">Development Key:</span> <span class="text-gray-600">{{.User.ApiKeyDev.String}}</span>
-                    </li>
-                    <li>
-                        <span class="font-bold">Production Key:</span> <span class="text-gray-600">{{.User.ApiKey.String}}</span>
-                    </li>
-                </ul>
-            </div>
-            <!-- Content for the main area will go here -->
-            <div class="bg-white p-6 rounded-lg shadow-md">
-                <h2 class="text-2xl font-semibold text-gray-800 mb-4">Recent Activity</h2>
-                <p class="text-gray-600">This section will display your recent API calls and other activity.</p>
-                <!-- Table showing all the logs -->
-                 <div class="mt-4">
-                    <table class="min-w-full divide-y divide-gray-200" id="Logs">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    ID
-                                </th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Type
-                                </th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Details
-                                </th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Created At
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {{range .Logs}}
-                            <tr>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{.ID}}</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{.ApiType}}</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{.Comments.String}}</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{.CreatedAt.Time.Format "2006-01-02 15:04:05"}}</td>
-                            </tr>
-                            {{end}}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </main>
-
-    <footer class="bg-gray-800 text-white py-4 bottom-0 left-0 w-full  mt-20">
-        <div class="max-w-6xl mx-auto px-4 text-center">
-            <p>&copy; 2024 RestfulDevTools. All rights reserved.</p>
-        </div>
-    </footer>
     <script>
-        $(document).ready( function () {
-            $('#Logs').DataTable();
-        } );
+        document.getElementById('unlinkGmail').addEventListener('click', function() {
+            // Here you would typically send a request to your backend to unlink the account
+            // post a request too /unlink
+            var id = document.getElementsByName('user_id')[0].value;
+            fetch('/unlink', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    user_id: id
+                }),
+            })
+            .then(response => response.json())
+            .then(data => {
+            // For example, you might hide the unlink button and display a message
+                document.getElementById('message').textContent = 'Gmail account unlinked successfully!';
+                document.getElementById('message').className = 'mt-6 text-sm font-semibold text-green-600';
+            })
+            .catch((error) => {
+                document.getElementById('message').textContent = 'Error setting persona: ' + error;
+                document.getElementById('message').className = 'mt-6 text-sm font-semibold text-red-600';
+            });
+            // Update the UI to reflect the unlinking
+
+        });
+
+        document.getElementById('personaForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var persona = document.getElementById('persona').value;
+    var id = document.getElementsByName('user_id')[0].value;
+
+
+    fetch('/setpersona', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            persona: persona, // Send the JSON object
+            user_id: id
+        }),
+    })
+    .then(response => response.json())
+    .then(data => {
+        document.getElementById('message').textContent = 'Persona set successfully!';
+        document.getElementById('message').className = 'mt-6 text-sm font-semibold text-green-600';
+    })
+    .catch((error) => {
+        document.getElementById('message').textContent = 'Error setting persona: ' + error;
+        document.getElementById('message').className = 'mt-6 text-sm font-semibold text-red-600';
+    });
+});
+
     </script>
 </body>
 </html>

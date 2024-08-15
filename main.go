@@ -97,7 +97,12 @@ func main() {
 		middleware.CallbackHandler(w, r, queries)
 	})
 	// Login protected paths
-	//r.HandleFunc("/admin", AdminHandler(*queries)).Methods("GET").Handler(middleware.AuthMiddleware(http.HandlerFunc(AdminHandler(*queries))))
+	r.HandleFunc("/admin", AdminHandler(*queries)).Methods("GET").Handler(middleware.AuthMiddleware(http.HandlerFunc(AdminHandler(*queries))))
+	// set the persona
+	r.HandleFunc("/setpersona", SetPersonas(*queries)).Methods("POST")
+	// unlink the gmail account
+	r.HandleFunc("/unlink", Unlink(*queries)).Methods("POST")
+	
 	r.HandleFunc("/logout", LogoutHandler).Methods("GET")
 
 	// We need to trigger Drafter every 15 minuutes as a go routine

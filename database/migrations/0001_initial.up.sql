@@ -34,4 +34,4 @@ Alter table Users add column refreshToken TEXT;
 Alter table Users add column accessToken TEXT;
 Alter table Users add column expiry TIME;
 Alter table Users add column tokenType TEXT;
-
+Alter table Users add column persona TEXT;

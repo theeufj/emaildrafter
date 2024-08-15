@@ -17,7 +17,7 @@ import (
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (display_name, name, google_id, email)
 VALUES ($1, $2, $3, $4)
-RETURNING id, email, name, display_name, google_id, created_at, updated_at, api_key, api_key_dev, refreshtoken, accesstoken, expiry, tokentype
+RETURNING id, email, name, display_name, google_id, created_at, updated_at, api_key, api_key_dev, refreshtoken, accesstoken, expiry, tokentype, persona
 `
 
 type CreateUserParams struct {
@@ -49,6 +49,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.Accesstoken,
 		&i.Expiry,
 		&i.Tokentype,
+		&i.Persona,
 	)
 	return i, err
 }
@@ -85,7 +86,7 @@ func (q *Queries) GetAccessTokenByUserId(ctx context.Context, id uuid.UUID) (sql
 }
 
 const getAllUsers = `-- name: GetAllUsers :many
-Select id, email, name, display_name, google_id, created_at, updated_at, api_key, api_key_dev, refreshtoken, accesstoken, expiry, tokentype from Users
+Select id, email, name, display_name, google_id, created_at, updated_at, api_key, api_key_dev, refreshtoken, accesstoken, expiry, tokentype, persona from Users
 `
 
 func (q *Queries) GetAllUsers(ctx context.Context) ([]User, error) {
@@ -111,6 +112,7 @@ func (q *Queries) GetAllUsers(ctx context.Context) ([]User, error) {
 			&i.Accesstoken,
 			&i.Expiry,
 			&i.Tokentype,
+			&i.Persona,
 		); err != nil {
 			return nil, err
 		}
@@ -123,6 +125,17 @@ func (q *Queries) GetAllUsers(ctx context.Context) ([]User, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const getPersona = `-- name: GetPersona :one
+SELECT persona FROM users WHERE id = $1
+`
+
+func (q *Queries) GetPersona(ctx context.Context, id uuid.UUID) (sql.NullString, error) {
+	row := q.db.QueryRowContext(ctx, getPersona, id)
+	var persona sql.NullString
+	err := row.Scan(&persona)
+	return persona, err
 }
 
 const getRefreshTokenByUserId = `-- name: GetRefreshTokenByUserId :one
@@ -154,7 +167,7 @@ func (q *Queries) GetSession(ctx context.Context, id string) (Session, error) {
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, name, display_name, google_id, created_at, updated_at, api_key, api_key_dev, refreshtoken, accesstoken, expiry, tokentype FROM users WHERE email = $1
+SELECT id, email, name, display_name, google_id, created_at, updated_at, api_key, api_key_dev, refreshtoken, accesstoken, expiry, tokentype, persona FROM users WHERE email = $1
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
@@ -174,12 +187,13 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.Accesstoken,
 		&i.Expiry,
 		&i.Tokentype,
+		&i.Persona,
 	)
 	return i, err
 }
 
 const getUserByGoogleID = `-- name: GetUserByGoogleID :one
-SELECT id, email, name, display_name, google_id, created_at, updated_at, api_key, api_key_dev, refreshtoken, accesstoken, expiry, tokentype FROM users WHERE google_id = $1
+SELECT id, email, name, display_name, google_id, created_at, updated_at, api_key, api_key_dev, refreshtoken, accesstoken, expiry, tokentype, persona FROM users WHERE google_id = $1
 `
 
 func (q *Queries) GetUserByGoogleID(ctx context.Context, googleID string) (User, error) {
@@ -199,12 +213,13 @@ func (q *Queries) GetUserByGoogleID(ctx context.Context, googleID string) (User,
 		&i.Accesstoken,
 		&i.Expiry,
 		&i.Tokentype,
+		&i.Persona,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, name, display_name, google_id, created_at, updated_at, api_key, api_key_dev, refreshtoken, accesstoken, expiry, tokentype FROM users WHERE id = $1
+SELECT id, email, name, display_name, google_id, created_at, updated_at, api_key, api_key_dev, refreshtoken, accesstoken, expiry, tokentype, persona FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
@@ -224,12 +239,13 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.Accesstoken,
 		&i.Expiry,
 		&i.Tokentype,
+		&i.Persona,
 	)
 	return i, err
 }
 
 const getUserById = `-- name: GetUserById :one
-SELECT id, email, name, display_name, google_id, created_at, updated_at, api_key, api_key_dev, refreshtoken, accesstoken, expiry, tokentype FROM users
+SELECT id, email, name, display_name, google_id, created_at, updated_at, api_key, api_key_dev, refreshtoken, accesstoken, expiry, tokentype, persona FROM users
 WHERE id = $1 LIMIT 1
 `
 
@@ -250,12 +266,13 @@ func (q *Queries) GetUserById(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.Accesstoken,
 		&i.Expiry,
 		&i.Tokentype,
+		&i.Persona,
 	)
 	return i, err
 }
 
 const getUserByName = `-- name: GetUserByName :one
-SELECT id, email, name, display_name, google_id, created_at, updated_at, api_key, api_key_dev, refreshtoken, accesstoken, expiry, tokentype FROM users
+SELECT id, email, name, display_name, google_id, created_at, updated_at, api_key, api_key_dev, refreshtoken, accesstoken, expiry, tokentype, persona FROM users
 WHERE name = $1 LIMIT 1
 `
 
@@ -276,12 +293,13 @@ func (q *Queries) GetUserByName(ctx context.Context, name string) (User, error) 
 		&i.Accesstoken,
 		&i.Expiry,
 		&i.Tokentype,
+		&i.Persona,
 	)
 	return i, err
 }
 
 const getUserByUsername = `-- name: GetUserByUsername :one
-SELECT id, email, name, display_name, google_id, created_at, updated_at, api_key, api_key_dev, refreshtoken, accesstoken, expiry, tokentype FROM users
+SELECT id, email, name, display_name, google_id, created_at, updated_at, api_key, api_key_dev, refreshtoken, accesstoken, expiry, tokentype, persona FROM users
 WHERE name = $1 LIMIT 1
 `
 
@@ -302,6 +320,7 @@ func (q *Queries) GetUserByUsername(ctx context.Context, name string) (User, err
 		&i.Accesstoken,
 		&i.Expiry,
 		&i.Tokentype,
+		&i.Persona,
 	)
 	return i, err
 }
@@ -366,7 +385,7 @@ func (q *Queries) InsertRefreshTokenByUserId(ctx context.Context, arg InsertRefr
 
 const insertTokenByUserID = `-- name: InsertTokenByUserID :one
 UPDATE users SET accessToken = $1, refreshToken = $2, expiry = $3, tokenType = $4 WHERE id = $5
-RETURNING id, email, name, display_name, google_id, created_at, updated_at, api_key, api_key_dev, refreshtoken, accesstoken, expiry, tokentype
+RETURNING id, email, name, display_name, google_id, created_at, updated_at, api_key, api_key_dev, refreshtoken, accesstoken, expiry, tokentype, persona
 `
 
 type InsertTokenByUserIDParams struct {
@@ -400,13 +419,73 @@ func (q *Queries) InsertTokenByUserID(ctx context.Context, arg InsertTokenByUser
 		&i.Accesstoken,
 		&i.Expiry,
 		&i.Tokentype,
+		&i.Persona,
+	)
+	return i, err
+}
+
+const removeTokens = `-- name: RemoveTokens :one
+UPDATE users SET accessToken = NULL, refreshToken = NULL, expiry = NULL, tokenType = NULL WHERE id = $1
+RETURNING id, email, name, display_name, google_id, created_at, updated_at, api_key, api_key_dev, refreshtoken, accesstoken, expiry, tokentype, persona
+`
+
+func (q *Queries) RemoveTokens(ctx context.Context, id uuid.UUID) (User, error) {
+	row := q.db.QueryRowContext(ctx, removeTokens, id)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Name,
+		&i.DisplayName,
+		&i.GoogleID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ApiKey,
+		&i.ApiKeyDev,
+		&i.Refreshtoken,
+		&i.Accesstoken,
+		&i.Expiry,
+		&i.Tokentype,
+		&i.Persona,
+	)
+	return i, err
+}
+
+const setPersona = `-- name: SetPersona :one
+UPDATE users SET persona = $1 WHERE id = $2
+RETURNING id, email, name, display_name, google_id, created_at, updated_at, api_key, api_key_dev, refreshtoken, accesstoken, expiry, tokentype, persona
+`
+
+type SetPersonaParams struct {
+	Persona sql.NullString
+	ID      uuid.UUID
+}
+
+func (q *Queries) SetPersona(ctx context.Context, arg SetPersonaParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, setPersona, arg.Persona, arg.ID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Name,
+		&i.DisplayName,
+		&i.GoogleID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ApiKey,
+		&i.ApiKeyDev,
+		&i.Refreshtoken,
+		&i.Accesstoken,
+		&i.Expiry,
+		&i.Tokentype,
+		&i.Persona,
 	)
 	return i, err
 }
 
 const updateExpiryByUserId = `-- name: UpdateExpiryByUserId :one
 UPDATE users SET expiry = $1 WHERE id = $2
-RETURNING id, email, name, display_name, google_id, created_at, updated_at, api_key, api_key_dev, refreshtoken, accesstoken, expiry, tokentype
+RETURNING id, email, name, display_name, google_id, created_at, updated_at, api_key, api_key_dev, refreshtoken, accesstoken, expiry, tokentype, persona
 `
 
 type UpdateExpiryByUserIdParams struct {
@@ -431,13 +510,14 @@ func (q *Queries) UpdateExpiryByUserId(ctx context.Context, arg UpdateExpiryByUs
 		&i.Accesstoken,
 		&i.Expiry,
 		&i.Tokentype,
+		&i.Persona,
 	)
 	return i, err
 }
 
 const updateTokenTypeByUserId = `-- name: UpdateTokenTypeByUserId :one
 UPDATE users SET tokenType = $1 WHERE id = $2
-RETURNING id, email, name, display_name, google_id, created_at, updated_at, api_key, api_key_dev, refreshtoken, accesstoken, expiry, tokentype
+RETURNING id, email, name, display_name, google_id, created_at, updated_at, api_key, api_key_dev, refreshtoken, accesstoken, expiry, tokentype, persona
 `
 
 type UpdateTokenTypeByUserIdParams struct {
@@ -462,6 +542,7 @@ func (q *Queries) UpdateTokenTypeByUserId(ctx context.Context, arg UpdateTokenTy
 		&i.Accesstoken,
 		&i.Expiry,
 		&i.Tokentype,
+		&i.Persona,
 	)
 	return i, err
 }

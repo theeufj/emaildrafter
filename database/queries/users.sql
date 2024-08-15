@@ -73,3 +73,14 @@ RETURNING *;
 
 -- name: GetAllUsers :many
 Select * from Users;
+
+-- name: SetPersona :one
+UPDATE users SET persona = $1 WHERE id = $2
+RETURNING *;
+
+-- name: GetPersona :one
+SELECT persona FROM users WHERE id = $1;
+
+-- name: RemoveTokens :one
+UPDATE users SET accessToken = NULL, refreshToken = NULL, expiry = NULL, tokenType = NULL WHERE id = $1
+RETURNING *;

@@ -9,7 +9,6 @@ import (
 	"database/sql"
 	"emaildrafter/database/store"
 	"emaildrafter/internal/env"
-	"emaildrafter/internal/library"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -220,7 +219,33 @@ func handleUser(ctx context.Context, queries *store.Queries, userInfo map[string
 		}
 		user = u
 	}
-	library.GmailCompose(token, user)
+	// check if refresh token present. If not update user with token
+	
+	if !user.Refreshtoken.Valid {
+		// insert Token
+		_, err = queries.InsertTokenByUserID(ctx, store.InsertTokenByUserIDParams{
+			ID: user.ID,
+			Accesstoken: sql.NullString{
+				String: accessToken,
+				Valid:  true,
+			},
+			Refreshtoken: sql.NullString{
+				String: refreshToken,
+				Valid:  true},
+			Expiry: sql.NullTime{
+				Time:  expiry,
+				Valid: true,
+			},
+			Tokentype: sql.NullString{
+				String: tokenType,
+				Valid:  true,
+			},
+		})
+		if err != nil {
+			return fmt.Errorf("failed to insert token: %w", err)
+		}
+	}
+	//library.GmailCompose(token, user)
 
 	return nil
 }

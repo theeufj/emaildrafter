@@ -41,4 +41,5 @@ type User struct {
 	Accesstoken  sql.NullString
 	Expiry       sql.NullTime
 	Tokentype    sql.NullString
+	Persona      sql.NullString
 }
