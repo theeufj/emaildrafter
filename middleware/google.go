@@ -150,7 +150,7 @@ func CallbackHandler(w http.ResponseWriter, r *http.Request, queries *store.Quer
 	// Set the cookie
 	http.SetCookie(w, cookie)
 	// Redirect to the home page or a protected route
-	http.Redirect(w, r, "/", http.StatusFound)
+	http.Redirect(w, r, "/admin", http.StatusFound)
 }
 
 func getUserInfo(ctx context.Context, token *oauth2.Token) (map[string]interface{}, error) {
