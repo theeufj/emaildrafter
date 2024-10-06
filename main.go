@@ -83,7 +83,7 @@ func setupLogger(mode string) {
 	var fileHandler slog.Handler
 	if mode == "prod" {
 		// Create a JSON handler for file output in production
-		logFile, err := os.OpenFile("app.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0640) // Reduced permissions
+		logFile, err := os.OpenFile("app.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0600) // Reduced permissions
 		if err != nil {
 			fmt.Printf("Error opening log file: %v\n", err)
 			os.Exit(1)
@@ -222,12 +222,14 @@ func createServer(r *mux.Router, mode, port string) *http.Server {
 
 	tlsConfig := &tls.Config{
 		Certificates: []tls.Certificate{cert},
+		MinVersion:   tls.VersionTLS12,
 	}
 
 	return &http.Server{
-		Addr:      ":" + port,
-		Handler:   r,
-		TLSConfig: tlsConfig,
+		Addr:              ":" + port,
+		Handler:           r,
+		TLSConfig:         tlsConfig,
+		ReadHeaderTimeout: 30 * time.Second,
 	}
 }
 

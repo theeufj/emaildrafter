@@ -58,7 +58,12 @@ func ServeLoginPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	tmpl.Execute(w, nil)
+	if err := tmpl.Execute(w, nil); err != nil {
+		// Handle the template execution error
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError) // Or a more specific error
+		log.Println("Error executing template:", err)                          // Log the error for debugging
+		return                                                                 // Stop further processing
+	}
 }
 
 func AdminHandler(q store.Queries) func(http.ResponseWriter, *http.Request) {
@@ -165,7 +170,12 @@ func SetPersonas(q store.Queries) func(http.ResponseWriter, *http.Request) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(response)
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			// Handle the JSON encoding error
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError) // Or a more specific error message
+			log.Println("Error encoding JSON response:", err)                      // Log the error for debugging
+			return                                                                 // Stop further processing
+		}
 	}
 }
 
@@ -203,6 +213,11 @@ func Unlink(q store.Queries) func(http.ResponseWriter, *http.Request) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(response)
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			// Handle the JSON encoding error
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError) // Or a more specific error message
+			log.Println("Error encoding JSON response:", err)                      // Log the error for debugging
+			return                                                                 // Stop further processing
+		}
 	}
 }
