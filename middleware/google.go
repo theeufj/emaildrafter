@@ -1,10 +1,7 @@
 package middleware
 
 import (
-	"bytes"
 	"context"
-	"crypto/aes"
-	"crypto/cipher"
 	"crypto/rand"
 	"database/sql"
 	"emaildrafter/database/store"
@@ -12,10 +9,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
-	"math"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/google/uuid"
@@ -23,12 +19,10 @@ import (
 	"golang.org/x/oauth2/google"
 )
 
-// Google OAuth2 Configuration
 var (
 	config *oauth2.Config
 )
 
-// InitializeOAuth initializes the OAuth2 configuration using environment variables
 func InitializeOAuth() error {
 	clientID := env.GetAsString("GOOGLE_CLIENT_ID")
 	clientSecret := env.GetAsString("GOOGLE_CLIENT_SECRET")
@@ -44,20 +38,17 @@ func InitializeOAuth() error {
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
 		RedirectURL:  redirectURI,
-		Scopes:       []string{"email", "profile", "https://www.googleapis.com/auth/gmail.compose", "https://www.googleapis.com/auth/gmail.readonly"},
+		Scopes:       []string{"email", "profile", "https://www.googleapis.com/auth/calendar", "https://www.googleapis.com/auth/gmail.compose", "https://www.googleapis.com/auth/gmail.readonly"},
 		Endpoint:     google.Endpoint,
 	}
 
 	return nil
 }
 
-// generateStateOauthCookie generates a random state and sets it in a cookie
-func generateStateOauthCookie(w http.ResponseWriter) string {
+func generateStateOauthCookie(w http.ResponseWriter) (string, error) {
 	b := make([]byte, 16)
-	_, err := rand.Read(b)
-	if err != nil {
-		log.Printf("Error generating random state: %v", err)
-		return ""
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("error generating random state: %w", err)
 	}
 	state := base64.URLEncoding.EncodeToString(b)
 	cookie := &http.Cookie{
@@ -69,18 +60,16 @@ func generateStateOauthCookie(w http.ResponseWriter) string {
 		SameSite: http.SameSiteLaxMode,
 	}
 	http.SetCookie(w, cookie)
-	return state
+	return state, nil
 }
 
-// LoginHandler handles the Google OAuth2 login
 func LoginHandler(w http.ResponseWriter, r *http.Request) {
-	// Ensure OAuth is initialized before using config
 	if err := InitializeOAuth(); err != nil {
 		http.Error(w, fmt.Sprintf("Failed to initialize OAuth: %v", err), http.StatusInternalServerError)
 		return
 	}
-	oauthState := generateStateOauthCookie(w)
-	if oauthState == "" {
+	oauthState, err := generateStateOauthCookie(w)
+	if err != nil {
 		http.Error(w, "Failed to generate state", http.StatusInternalServerError)
 		return
 	}
@@ -88,7 +77,6 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, url, http.StatusFound)
 }
 
-// CallbackHandler handles the Google OAuth2 callback
 func CallbackHandler(w http.ResponseWriter, r *http.Request, queries *store.Queries) {
 	if err := InitializeOAuth(); err != nil {
 		http.Error(w, fmt.Sprintf("Failed to initialize OAuth: %v", err), http.StatusInternalServerError)
@@ -117,26 +105,12 @@ func CallbackHandler(w http.ResponseWriter, r *http.Request, queries *store.Quer
 		return
 	}
 
-	err = handleUser(r.Context(), queries, userInfo, token)
-	if err != nil {
+	if err := handleUser(r.Context(), queries, userInfo, token); err != nil {
 		log.Printf("Error handling user: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
-	// Create a cookie to store the user's login status
-	cookie := &http.Cookie{
-		Name:     "loggedIn",
-		Value:    "true", // Set to "true" to indicate logged in
-		Path:     "/",
-		HttpOnly: true,                      // Prevent JavaScript access
-		Secure:   true,                      // Only send over HTTPS
-		SameSite: http.SameSiteLaxMode,      // Restrict to same-site requests
-		MaxAge:   3600,                      // Expire in 60 minutes
-		Domain:   env.GetAsString("DOMAIN"), // Allow access from subdomains
-	}
-
-	// Get the Google ID from the user info
 	googleID, ok := userInfo["sub"].(string)
 	if !ok {
 		log.Printf("Error getting Google ID from user info: %v", userInfo)
@@ -144,12 +118,18 @@ func CallbackHandler(w http.ResponseWriter, r *http.Request, queries *store.Quer
 		return
 	}
 
-	// Set the Google ID as the cookie value
-	cookie.Value = googleID
+	cookie := &http.Cookie{
+		Name:     "loggedIn",
+		Value:    googleID,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   3600,
+		Domain:   env.GetAsString("DOMAIN"),
+	}
 
-	// Set the cookie
 	http.SetCookie(w, cookie)
-	// Redirect to the home page or a protected route
 	http.Redirect(w, r, "/admin", http.StatusFound)
 }
 
@@ -174,19 +154,15 @@ func handleUser(ctx context.Context, queries *store.Queries, userInfo map[string
 	name, _ := userInfo["name"].(string)
 	googleID, _ := userInfo["sub"].(string)
 	displayName, _ := userInfo["given_name"].(string)
-	refreshToken := token.RefreshToken
-	accessToken := token.AccessToken
-	expiry := token.Expiry
-	tokenType := token.TokenType
-	var user store.User
 
 	if email == "" || name == "" || googleID == "" {
 		return fmt.Errorf("missing required user info")
 	}
+
 	user, err := queries.GetUserByGoogleID(ctx, googleID)
 	if err != nil {
 		// User doesn't exist, create a new one
-		u, err := queries.CreateUser(ctx, store.CreateUserParams{
+		user, err = queries.CreateUser(ctx, store.CreateUserParams{
 			GoogleID:    googleID,
 			Name:        name,
 			Email:       email,
@@ -195,195 +171,96 @@ func handleUser(ctx context.Context, queries *store.Queries, userInfo map[string
 		if err != nil {
 			return fmt.Errorf("failed to create user: %w", err)
 		}
-		// insert Token
-		_, err = queries.InsertTokenByUserID(ctx, store.InsertTokenByUserIDParams{
-			ID: u.ID,
-			Accesstoken: sql.NullString{
-				String: accessToken,
-				Valid:  true,
-			},
-			Refreshtoken: sql.NullString{
-				String: refreshToken,
-				Valid:  true},
-			Expiry: sql.NullTime{
-				Time:  expiry,
-				Valid: true,
-			},
-			Tokentype: sql.NullString{
-				String: tokenType,
-				Valid:  true,
-			},
-		})
-		if err != nil {
-			return fmt.Errorf("failed to insert token: %w", err)
-		}
-		user = u
 	}
-	// check if refresh token present. If not update user with token
-	
-	if !user.Refreshtoken.Valid {
-		// insert Token
-		_, err = queries.InsertTokenByUserID(ctx, store.InsertTokenByUserIDParams{
-			ID: user.ID,
-			Accesstoken: sql.NullString{
-				String: accessToken,
-				Valid:  true,
-			},
-			Refreshtoken: sql.NullString{
-				String: refreshToken,
-				Valid:  true},
-			Expiry: sql.NullTime{
-				Time:  expiry,
-				Valid: true,
-			},
-			Tokentype: sql.NullString{
-				String: tokenType,
-				Valid:  true,
-			},
-		})
-		if err != nil {
-			return fmt.Errorf("failed to insert token: %w", err)
-		}
+	// need to encrypt all my tokens.
+	encryptedAccessToken, err := Encrypt(token.AccessToken, os.Getenv("KEY"))
+	if err != nil {
+		return fmt.Errorf("error encrypting access token: %w", err)
 	}
-	//library.GmailCompose(token, user)
+	encryptedRefreshToken, err := Encrypt(token.RefreshToken, os.Getenv("KEY"))
+	if err != nil {
+		return fmt.Errorf("error encrypting refresh token: %w", err)
+	}
+	encrtypedTokenType, err := Encrypt(token.TokenType, os.Getenv("KEY"))
+	if err != nil {
+		return fmt.Errorf("error encrypting token type: %w", err)
+	}
+	_, err = queries.InsertTokenByUserID(context.TODO(), store.InsertTokenByUserIDParams{
+		ID:           user.ID,
+		Accesstoken:  sql.NullString{String: encryptedAccessToken, Valid: true},
+		Refreshtoken: sql.NullString{String: encryptedRefreshToken, Valid: true},
+		Expiry:       sql.NullTime{Time: token.Expiry, Valid: true},
+		Tokentype:    sql.NullString{String: encrtypedTokenType, Valid: true},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to insert token: %w", err)
+	}
 
 	return nil
 }
 
-func HandleRefreshToken(user_id uuid.UUID, q store.Queries) (err error, token *oauth2.Token) {
+func HandleRefreshToken(userID uuid.UUID, q *store.Queries) (*oauth2.Token, error) {
 	if err := InitializeOAuth(); err != nil {
-		log.Printf("Error initializing OAuth: %v", err)
-		return err, nil
+		return nil, fmt.Errorf("error initializing OAuth: %w", err)
 	}
-	refreshToken, err := q.GetRefreshTokenByUserId(context.TODO(), user_id)
+
+	refreshToken, err := q.GetRefreshTokenByUserId(context.TODO(), userID)
 	if err != nil {
-		log.Printf("Error retrieving refresh token: %v", err)
-		return err, nil
+		return nil, fmt.Errorf("error retrieving refresh token: %w", err)
+	}
+	decryptedRefreshToken, err := Decrypt(refreshToken.String, os.Getenv("KEY"))
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt refresh toke: %s", err)
 	}
 
 	tokenSource := config.TokenSource(context.Background(), &oauth2.Token{
-		RefreshToken: refreshToken.String,
+		RefreshToken: decryptedRefreshToken,
 	})
 
 	newToken, err := refreshTokenWithRetry(tokenSource)
 	if err != nil {
-		log.Printf("Error refreshing token: %v", err)
-		return err, nil
+		return nil, fmt.Errorf("error refreshing token: %w", err)
 	}
 
-	// 4. Store new access and refresh tokens (optional)
-	// Depending on your security strategy, you may choose to update the stored refresh token
-	// or generate a new one here. Implement logic based on your requirements.
-
+	// need to encrypt all my tokens.
+	encryptedAccessToken, err := Encrypt(newToken.AccessToken, os.Getenv("KEY"))
+	if err != nil {
+		return nil, fmt.Errorf("error encrypting access token: %w", err)
+	}
+	encryptedRefreshToken, err := Encrypt(newToken.RefreshToken, os.Getenv("KEY"))
+	if err != nil {
+		return nil, fmt.Errorf("error encrypting refresh token: %w", err)
+	}
+	encrtypedTokenType, err := Encrypt(newToken.TokenType, os.Getenv("KEY"))
+	if err != nil {
+		return nil, fmt.Errorf("error encrypting token type: %w", err)
+	}
 	_, err = q.InsertTokenByUserID(context.TODO(), store.InsertTokenByUserIDParams{
-		ID: user_id,
-		Accesstoken: sql.NullString{
-			String: newToken.AccessToken,
-			Valid:  true,
-		},
-		Refreshtoken: sql.NullString{
-			String: newToken.RefreshToken,
-			Valid:  true},
-		Expiry: sql.NullTime{
-			Time:  newToken.Expiry,
-			Valid: true,
-		},
-		Tokentype: sql.NullString{
-			String: newToken.TokenType,
-			Valid:  true,
-		},
+		ID:           userID,
+		Accesstoken:  sql.NullString{String: encryptedAccessToken, Valid: true},
+		Refreshtoken: sql.NullString{String: encryptedRefreshToken, Valid: true},
+		Expiry:       sql.NullTime{Time: newToken.Expiry, Valid: true},
+		Tokentype:    sql.NullString{String: encrtypedTokenType, Valid: true},
 	})
 	if err != nil {
-		return err, nil
+		return nil, fmt.Errorf("failed to insert token: %w", err)
 	}
 
-	// 5. Return new access token to client
-	return nil, newToken
-}
-
-// GenerateKey generates a random key for encryption
-// The salt comes from the .env file.
-func GenerateKey(salt string) ([]byte, error) {
-	key := []byte(salt) // 32 bytes for AES-256
-	_, err := io.ReadFull(rand.Reader, key)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate key: %w", err)
-	}
-	return key, nil
-}
-
-// EncryptToken encrypts a token using AES-256 in CBC mode
-func EncryptToken(token, key []byte) ([]byte, error) {
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create cipher: %w", err)
-	}
-
-	// Generate a random initialization vector (IV)
-	iv := make([]byte, block.BlockSize())
-	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
-		return nil, fmt.Errorf("failed to generate IV: %w", err)
-	}
-
-	// Create a cipher
-	stream := cipher.NewCBCEncrypter(block, iv)
-
-	// Pad the token to the block size
-	paddedToken := pkcs7Padding(token, block.BlockSize())
-
-	// Encrypt the token
-	encryptedToken := make([]byte, len(paddedToken))
-	stream.CryptBlocks(encryptedToken, paddedToken) // Use CryptBlocks instead of XORKeyStream
-
-	// Combine IV and encrypted token
-	return append(iv, encryptedToken...), nil
-}
-
-// DecryptToken decrypts a token using AES-256 in CBC mode
-func DecryptToken(encryptedToken, key []byte) ([]byte, error) {
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create cipher: %w", err)
-	}
-
-	// Extract IV from the encrypted token
-	iv := encryptedToken[:block.BlockSize()]
-	encryptedToken = encryptedToken[block.BlockSize():]
-
-	// Create a cipher
-	stream := cipher.NewCBCDecrypter(block, iv)
-
-	// Decrypt the token
-	decryptedToken := make([]byte, len(encryptedToken))
-	stream.CryptBlocks(decryptedToken, encryptedToken) // Use CryptBlocks instead of XORKeyStream
-
-	// Remove padding
-	return pkcs7Unpadding(decryptedToken), nil
-}
-
-// pkcs7Padding pads a byte slice to a multiple of the block size
-func pkcs7Padding(data []byte, blockSize int) []byte {
-	padding := blockSize - (len(data) % blockSize)
-	padtext := bytes.Repeat([]byte{byte(padding)}, padding)
-	return append(data, padtext...)
-}
-
-// pkcs7Unpadding removes padding from a byte slice
-func pkcs7Unpadding(data []byte) []byte {
-	padding := int(data[len(data)-1])
-	return data[:len(data)-padding]
+	return newToken, nil
 }
 
 func refreshTokenWithRetry(tokenSource oauth2.TokenSource) (*oauth2.Token, error) {
 	var token *oauth2.Token
 	var err error
-	for i := 0; i < 3; i++ { // Try up to 3 times
+	for i := 0; i < 3; i++ {
 		token, err = tokenSource.Token()
 		if err == nil {
 			return token, nil
 		}
 		log.Printf("Error refreshing token (attempt %d): %v", i+1, err)
-		time.Sleep(time.Duration(math.Pow(2, float64(i))) * time.Second) // Exponential backoff
+		time.Sleep(time.Duration(1<<uint(i)) * time.Second)
 	}
-	return nil, err
+	return nil, fmt.Errorf("failed to refresh token after 3 attempts: %w", err)
 }
+
+// recommend timeslot using gemini. We need to pass the both the booked timeslots and avalaible times to gemeini so it can correctly recommend a timeslot for a meeting

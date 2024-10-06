@@ -6,6 +6,7 @@ import (
 	"context"
 	"emaildrafter/database/store"
 	"emaildrafter/internal/env"
+	"emaildrafter/middleware"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -17,6 +18,7 @@ import (
 	"time"
 
 	"github.com/google/generative-ai-go/genai"
+	"golang.org/x/exp/rand"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/gmail/v1"
@@ -27,6 +29,12 @@ import (
 var (
 	config *oauth2.Config
 )
+
+// TimeSlot represents a block of time with a start and end.
+type TimeSlot struct {
+	StartTime time.Time // The start time of the time slot
+	EndTime   time.Time // The end time of the time slot
+}
 
 // InitializeOAuth initializes the OAuth2 configuration using environment variables
 func InitializeOAuth() error {
@@ -90,7 +98,7 @@ func ErrorHanlder(err error, line_number string) {
 }
 
 // drafts all releated information for a given email from a users authorised gamil account.
-func GmailCompose(token *oauth2.Token, user store.User) error {
+func GmailCompose(token *oauth2.Token, user store.User, q *store.Queries) error {
 	ctx := context.Background()
 	client := config.Client(ctx, token)
 	gmailService, err := gmail.New(client)
@@ -105,7 +113,7 @@ func GmailCompose(token *oauth2.Token, user store.User) error {
 
 	for _, msg := range messages {
 		if shouldProcessMessage(msg) {
-			if err := processMessage(gmailService, msg, user); err != nil {
+			if err := processMessage(gmailService, msg, user, q); err != nil {
 				log.Printf("Error processing message %s: %v", msg.Id, err)
 				// Continue processing other messages
 			}
@@ -127,7 +135,7 @@ func shouldProcessMessage(msg *gmail.Message) bool {
 	return false
 }
 
-func processMessage(gmailService *gmail.Service, msg *gmail.Message, user store.User) error {
+func processMessage(gmailService *gmail.Service, msg *gmail.Message, user store.User, q *store.Queries) error {
 	bodyMessage, err := GetBody(msg, "text/plain")
 	if err != nil {
 		return fmt.Errorf("failed to get message body: %w", err)
@@ -138,7 +146,7 @@ func processMessage(gmailService *gmail.Service, msg *gmail.Message, user store.
 	}
 
 	metaData := GetPartialMetadata(msg)
-	response := DraftResponse(bodyMessage, user)
+	response, _ := DraftResponse(bodyMessage, user, q)
 	draft := createDraft(metaData, response, msg.ThreadId)
 
 	_, err = gmailService.Users.Drafts.Create("me", draft).Do()
@@ -171,9 +179,9 @@ func createDraft(metaData *PartialMetadata, response, threadId string) *gmail.Dr
 func prompt_string_creator(user store.User, email string) string {
 	var prompt string
 	if user.Persona.Valid {
-		prompt = "The following is your persona "+ user.Persona.String + " You must respond to the this email in a concise, accurate . While also responding with the same tone to the sender. " + email + ". " + " Sign off as " + user.Fullname.String + "."
+		prompt = "The following is your persona " + user.Persona.String + " You must respond to the this email in a concise, accurate . While also responding with the same tone to the sender. " + email + ". " + " Sign off as " + user.Name + "."
 	} else {
-		prompt = "You must respond to the this email in a concise, accurate . While also responding with the same tone to the sender. " + email + ". " + " Sign off as " + user.Fullname.String + "."
+		prompt = "You must respond to the this email in a concise, accurate . While also responding with the same tone to the sender. " + email + ". " + " Sign off as " + user.Name + "."
 	}
 
 	//prompt := "You must respond to the this email in a concise, accurate . While also responding with the same tone to the sender. " + email + ". " + " Sign off as " + user.Name + "."
@@ -181,48 +189,99 @@ func prompt_string_creator(user store.User, email string) string {
 }
 
 // drafts a response using Gemini.
-func DraftResponse(bodyMessage string, user store.User) (response string) {
-	ctx := context.Background()
-	// Access your API key as an environment variable (see "Set up your API key" above)
-	client, err := genai.NewClient(ctx, option.WithAPIKey(os.Getenv("GEMINI_API_KEY")))
+// BackoffRetry attempts to retry a function with exponential backoff and jitter
+func BackoffRetry(attempts int, initialDelay time.Duration, fn func() (string, error)) (string, error) {
+	delay := initialDelay
+	for i := 0; i < attempts; i++ {
+		result, err := fn()
+		if err == nil {
+			return result, nil
+		}
+		log.Printf("Attempt %d failed: %v. Retrying in %v...\n", i+1, err, delay)
 
+		// Add jitter to avoid thundering herd problem
+		jitter := time.Duration(rand.Int63n(int64(delay / 2)))
+		time.Sleep(delay + jitter)
+
+		// Exponential backoff
+		delay *= 2
+	}
+	return "", errors.New("all retry attempts failed")
+}
+
+// DraftResponse drafts a response using Gemini with backoff
+func DraftResponse(bodyMessage string, user store.User, queries *store.Queries) (string, error) {
+	ctx := context.Background()
+
+	// Access the API key as an environment variable
+	client, err := genai.NewClient(ctx, option.WithAPIKey(os.Getenv("GEMINI_API_KEY")))
 	if err != nil {
-		log.Fatal(err)
+		return "", fmt.Errorf("failed to create client: %v", err)
 	}
 	defer client.Close()
+
 	log.Println("Line 192 in Draft Response")
 
+	// Create the prompt
 	prompt := prompt_string_creator(user, bodyMessage)
-	log.Println("prompt is: " + prompt)
+	log.Println("Prompt is: " + prompt)
 
 	model := client.GenerativeModel("gemini-1.5-pro")
-	resp, err := model.GenerateContent(ctx, genai.Text(
-		prompt,
-	))
 
-	if err != nil {
-		log.Fatal(err)
+	// Retry Gemini content generation with backoff
+	generateContent := func() (string, error) {
+		resp, err := model.GenerateContent(ctx, genai.Text(prompt))
+		if err != nil {
+			return "", err
+		}
+		bs, _ := json.Marshal(resp.Candidates[len(resp.Candidates)-1].Content.Parts[len(resp.Candidates[len(resp.Candidates)-1].Content.Parts)-1])
+		responseString := string(bs)
+		responseString = strings.Replace(responseString[1:len(responseString)-1], `\n`, "\n", -1)
+		return responseString, nil
 	}
-	bs, _ := json.Marshal(resp.Candidates[len(resp.Candidates)-1].Content.Parts[len(resp.Candidates[len(resp.Candidates)-1].Content.Parts)-1])
 
-	responseString := string(bs)
-	responseString = responseString[1 : len(responseString)-1]
-	responseString = strings.Replace(responseString, `\n`, "\n", -1)
-
-	resp, err = model.GenerateContent(ctx, genai.Text(
-		"Make this more concise"+responseString+".",
-	))
-
+	// Retry the content generation
+	responseString, err := BackoffRetry(5, 2*time.Second, generateContent)
 	if err != nil {
-		log.Fatal(err)
+		return "", fmt.Errorf("failed to generate response after multiple retries: %v", err)
 	}
-	bs, _ = json.Marshal(resp.Candidates[len(resp.Candidates)-1].Content.Parts[len(resp.Candidates[len(resp.Candidates)-1].Content.Parts)-1])
 
-	responseString = string(bs)
-	responseString = responseString[1 : len(responseString)-1]
-	responseString = strings.Replace(responseString, `\n`, "\n", -1)
+	// Retry the "concise" response generation with backoff
+	conciseContent := func() (string, error) {
+		resp, err := model.GenerateContent(ctx, genai.Text("Make this more concise: "+responseString+"."))
+		if err != nil {
+			return "", err
+		}
+		bs, _ := json.Marshal(resp.Candidates[len(resp.Candidates)-1].Content.Parts[len(resp.Candidates[len(resp.Candidates)-1].Content.Parts)-1])
+		responseString = string(bs)
+		responseString = strings.Replace(responseString[1:len(responseString)-1], `\n`, "\n", -1)
+		return responseString, nil
+	}
 
-	return responseString
+	// Final concise response
+	finalResponse, err := BackoffRetry(5, 2*time.Second, conciseContent)
+	if err != nil {
+		return "", fmt.Errorf("failed to make the response concise after multiple retries: %v", err)
+	}
+
+	// Check if the response contains a booking reference
+	if strings.Contains(finalResponse, "book") || strings.Contains(finalResponse, "schedule") {
+		log.Println("Booking reference found, initiating calendar booking...")
+
+		// Call CalendarHandler to handle booking
+		availableSlots, err := CalendarHandler(user, queries)
+		if err != nil {
+			return finalResponse, fmt.Errorf("failed to handle calendar booking: %v", err)
+		}
+
+		// Optionally, append available slots information to the response
+		finalResponse += "\n\nAvailable slots for booking:\n"
+		for _, slot := range availableSlots {
+			finalResponse += fmt.Sprintf("- %s\n", slot)
+		}
+	}
+
+	return finalResponse, nil
 }
 
 // Takes in a single message, then returns a draft message
@@ -471,4 +530,140 @@ func CheckForUnread(srv *gmail.Service) (int64, error) {
 // GetLabels gets a list of the labels used in the users inbox.
 func GetLabels(srv *gmail.Service) (*gmail.ListLabelsResponse, error) {
 	return srv.Users.Labels.List("me").Do()
+}
+
+// createMeetingTimeRecommendationPrompt creates a structured prompt for Gemini to recommend meeting times
+func CreateMeetingTimeRecommendationPrompt(bodyMessage string, bookedSlots []TimeSlot, availableSlots []TimeSlot) string {
+	prompt := "You are tasked with recommending the best time slots for scheduling a meeting. Below are the user's booked and available time slots. Please recommend up to 3 meeting times based on the availability and ensure that the times are at least 1 hour long.\n\n"
+
+	// Include booked time slots
+	prompt += "Booked Times:\n"
+	for _, slot := range bookedSlots {
+		prompt += fmt.Sprintf("Start: %s, End: %s\n", slot.StartTime.Format(time.RFC3339), slot.EndTime.Format(time.RFC3339))
+	}
+
+	// Include available time slots
+	prompt += "\nAvailable Times:\n"
+	for _, slot := range availableSlots {
+		prompt += fmt.Sprintf("Start: %s, End: %s\n", slot.StartTime.Format(time.RFC3339), slot.EndTime.Format(time.RFC3339))
+	}
+
+	// Body message for context
+	prompt += "\nBody Message: " + bodyMessage + "\n"
+
+	// Instruction to recommend meeting times
+	prompt += "Please recommend up to 3 meeting times that fit within the available time slots."
+
+	return prompt
+}
+
+// This is going to be the calendar handler. Where the agent will be able to look at your calendar and make recommendations for when to book a meeting in, and then use this within the drafted response when appropriate.
+func CalendarHandler(user store.User, queries *store.Queries) ([]string, error) {
+	// Initialize OAuth and retrieve the user's token from the session or database
+	if err := InitializeOAuth(); err != nil {
+		return nil, fmt.Errorf("failed to initialize OAuth: %v", err)
+	}
+
+	// Fetch the user's refresh token from the database
+	refreshToken, err := queries.GetRefreshTokenByUserId(context.Background(), user.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve refresh token: %v", err)
+	}
+
+	// Decrypt the refresh token
+	decryptedRefreshToken, err := middleware.Decrypt(refreshToken.String, os.Getenv("KEY"))
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt refresh token: %v", err)
+	}
+
+	// Create token source with the decrypted refresh token
+	tokenSource := config.TokenSource(context.Background(), &oauth2.Token{
+		RefreshToken: decryptedRefreshToken,
+	})
+
+	// Refresh the token
+	token, err := tokenSource.Token()
+	if err != nil {
+		return nil, fmt.Errorf("failed to refresh token: %v", err)
+	}
+
+	// Fetch user's calendar events and find available slots
+	availableSlots, err := getAvailableCalendarSlots(context.Background(), token)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve calendar slots: %v", err)
+	}
+
+	return availableSlots, nil
+}
+
+func getAvailableCalendarSlots(ctx context.Context, token *oauth2.Token) ([]string, error) {
+	client := config.Client(ctx, token)
+
+	// Define the Google Calendar API endpoint for retrieving events
+	calendarServiceURL := "https://www.googleapis.com/calendar/v3/calendars/primary/events"
+
+	// Get current time and look for availability for the next 7 days
+	now := time.Now().Format(time.RFC3339)
+	oneWeekLater := time.Now().Add(7 * 24 * time.Hour).Format(time.RFC3339)
+
+	url := fmt.Sprintf("%s?timeMin=%s&timeMax=%s&singleEvents=true&orderBy=startTime", calendarServiceURL, now, oneWeekLater)
+
+	resp, err := client.Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get calendar events: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Parse the response from Google Calendar API
+	var eventsResponse struct {
+		Items []struct {
+			Start struct {
+				DateTime string `json:"dateTime"`
+			} `json:"start"`
+			End struct {
+				DateTime string `json:"dateTime"`
+			} `json:"end"`
+		} `json:"items"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&eventsResponse); err != nil {
+		return nil, fmt.Errorf("failed to decode calendar events: %w", err)
+	}
+
+	// Find gaps between events
+	return findAvailableTimeSlots(eventsResponse.Items), nil
+}
+
+func findAvailableTimeSlots(events []struct {
+	Start struct {
+		DateTime string `json:"dateTime"`
+	} `json:"start"`
+	End struct {
+		DateTime string `json:"dateTime"`
+	} `json:"end"`
+}) []string {
+	var availableSlots []string
+	now := time.Now()
+
+	// Iterate through the events and find gaps
+	for _, event := range events {
+		eventStart, _ := time.Parse(time.RFC3339, event.Start.DateTime)
+		eventEnd, _ := time.Parse(time.RFC3339, event.End.DateTime)
+
+		if eventEnd.After(now) {
+			gapDuration := eventStart.Sub(now)
+			if gapDuration.Hours() >= 1 {
+				availableSlots = append(availableSlots, fmt.Sprintf("Available from %s to %s", now.Format(time.RFC1123), eventStart.Format(time.RFC1123)))
+			}
+			now = eventEnd
+		}
+	}
+
+	// Check for availability after the last event
+	oneWeekLater := time.Now().Add(7 * 24 * time.Hour)
+	if oneWeekLater.After(now) {
+		availableSlots = append(availableSlots, fmt.Sprintf("Available from %s to %s", now.Format(time.RFC1123), oneWeekLater.Format(time.RFC1123)))
+	}
+
+	return availableSlots
 }
