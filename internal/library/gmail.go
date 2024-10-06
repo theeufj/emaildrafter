@@ -223,13 +223,14 @@ func DraftResponse(bodyMessage string, user store.User, queries *store.Queries) 
 	log.Println("Line 192 in Draft Response")
 
 	// Create the prompt
+	//*genai.GenerativeModel
 	prompt := prompt_string_creator(user, bodyMessage)
 	log.Println("Prompt is: " + prompt)
 
 	model := client.GenerativeModel("gemini-1.5-pro")
 
-	// Retry Gemini content generation with backoff
-	generateContent := func() (string, error) {
+	// Function to generate content using the specified model
+	generateContent := func(model *genai.GenerativeModel) (string, error) {
 		resp, err := model.GenerateContent(ctx, genai.Text(prompt))
 		if err != nil {
 			return "", err
@@ -240,8 +241,22 @@ func DraftResponse(bodyMessage string, user store.User, queries *store.Queries) 
 		return responseString, nil
 	}
 
-	// Retry the content generation
-	responseString, err := BackoffRetry(5, 2*time.Second, generateContent)
+	// Retry the content generation with backoff and error handling
+	responseString, err := BackoffRetry(5, 2*time.Second, func() (string, error) {
+		model := client.GenerativeModel("gemini-1.5-pro")
+
+		response, err := generateContent(model)
+		if err != nil {
+			// Here you may need to check if the error contains "429" in its string representation
+			if strings.Contains(err.Error(), "429") {
+				// If error code is 429, switch to a different model for retry
+				model = client.GenerativeModel("gemini-1.0-pro")
+				response, err = generateContent(model)
+			}
+		}
+		return response, err
+	})
+
 	if err != nil {
 		return "", fmt.Errorf("failed to generate response after multiple retries: %v", err)
 	}
