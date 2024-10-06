@@ -175,16 +175,46 @@ func createDraft(metaData *PartialMetadata, response, threadId string) *gmail.Dr
 	return &gmail.Draft{Message: message}
 }
 
-// // this is going to be used to generate the prompt for an email response.
-func prompt_string_creator(user store.User, email string) string {
-	var prompt string
+// promptStringCreator generates a prompt for responding to an email based on the user's persona.
+// It returns a boolean indicating whether a booking was requested.
+func promptStringCreator(user store.User, email string) (bool, string) {
+	var personaDescription string
 	if user.Persona.Valid {
-		prompt = "The following is your persona " + user.Persona.String + " You must respond to the this email in a concise, accurate . While also responding with the same tone to the sender. " + email + ". " + " Sign off as " + user.Name + "."
+		personaDescription = fmt.Sprintf("As a representative of the '%s' persona, ", user.Persona.String)
 	} else {
-		prompt = "You must respond to the this email in a concise, accurate . While also responding with the same tone to the sender. " + email + ". " + " Sign off as " + user.Name + "."
+		personaDescription = "In your usual style, "
 	}
 
-	//prompt := "You must respond to the this email in a concise, accurate . While also responding with the same tone to the sender. " + email + ". " + " Sign off as " + user.Name + "."
+	// Check for booking request keywords
+	bookingRequested := strings.Contains(strings.ToLower(email), "book") || strings.Contains(strings.ToLower(email), "schedule")
+
+	// Create the prompt
+	prompt := fmt.Sprintf(
+		"%s you are tasked with crafting a response to the following email:\n\n\"%s\"\n\nPlease ensure that your reply is concise and accurate, while maintaining the same tone as the original message. Conclude your response with your name: %s.",
+		personaDescription, email, user.Name,
+	)
+
+	return bookingRequested, prompt
+}
+
+// promptStringCreatorWithTimeslots generates a prompt for responding to an email based on the user's persona,
+// considering booked time slots and available time slots.
+func promptStringCreatorWithTimeslots(user store.User, email string, availableSlots []string) string {
+	var personaDescription string
+	if user.Persona.Valid {
+		personaDescription = fmt.Sprintf("This is who you are,'%s' at all times you must consider this and their likely needs., ", user.Persona.String)
+	} else {
+		personaDescription = "In your usual style, "
+	}
+
+	// Determine typical business hours based on available slots
+
+	// Prompt construction
+	prompt := fmt.Sprintf(
+		"%sYou are tasked with crafting a response to the following email:\n\n\"%s\"\n\n\n\nWhen selecting an available time slot, ensure it aligns with the individual’s preferences based on their personal description. Choose one of the following available slots: %v.\n\nPlease ensure that your reply is concise and accurate while maintaining the same tone as the original message. Conclude your response with your name: %s.",
+		personaDescription, email, availableSlots, user.Name,
+	)
+
 	return prompt
 }
 
@@ -222,9 +252,8 @@ func DraftResponse(bodyMessage string, user store.User, queries *store.Queries) 
 
 	log.Println("Line 192 in Draft Response")
 
-	// Create the prompt
-	//*genai.GenerativeModel
-	prompt := prompt_string_creator(user, bodyMessage)
+	// Create the prompt and check if booking is requested
+	bookingRequested, prompt := promptStringCreator(user, bodyMessage)
 	log.Println("Prompt is: " + prompt)
 
 	model := client.GenerativeModel("gemini-1.5-pro")
@@ -247,7 +276,7 @@ func DraftResponse(bodyMessage string, user store.User, queries *store.Queries) 
 
 		response, err := generateContent(model)
 		if err != nil {
-			// Here you may need to check if the error contains "429" in its string representation
+			// Check if the error contains "429" in its string representation
 			if strings.Contains(err.Error(), "429") {
 				// If error code is 429, switch to a different model for retry
 				model = client.GenerativeModel("gemini-1.0-pro")
@@ -279,8 +308,8 @@ func DraftResponse(bodyMessage string, user store.User, queries *store.Queries) 
 		return "", fmt.Errorf("failed to make the response concise after multiple retries: %v", err)
 	}
 
-	// Check if the response contains a booking reference
-	if strings.Contains(finalResponse, "book") || strings.Contains(finalResponse, "schedule") {
+	// If a booking was requested, handle the booking logic
+	if bookingRequested {
 		log.Println("Booking reference found, initiating calendar booking...")
 
 		// Call CalendarHandler to handle booking
@@ -289,11 +318,27 @@ func DraftResponse(bodyMessage string, user store.User, queries *store.Queries) 
 			return finalResponse, fmt.Errorf("failed to handle calendar booking: %v", err)
 		}
 
-		// Optionally, append available slots information to the response
-		finalResponse += "\n\nAvailable slots for booking:\n"
-		for _, slot := range availableSlots {
-			finalResponse += fmt.Sprintf("- %s\n", slot)
+		// Generate a new prompt that includes time slots
+		promptWithTimeslots := promptStringCreatorWithTimeslots(user, bodyMessage, availableSlots)
+
+		// Generate response using the new prompt with timeslots
+		timeslotResponse, err := BackoffRetry(5, 2*time.Second, func() (string, error) {
+			resp, err := model.GenerateContent(ctx, genai.Text(promptWithTimeslots))
+			if err != nil {
+				return "", err
+			}
+			bs, _ := json.Marshal(resp.Candidates[len(resp.Candidates)-1].Content.Parts[len(resp.Candidates[len(resp.Candidates)-1].Content.Parts)-1])
+			responseString = string(bs)
+			responseString = strings.Replace(responseString[1:len(responseString)-1], `\n`, "\n", -1)
+			return responseString, nil
+		})
+
+		if err != nil {
+			return "", fmt.Errorf("failed to generate timeslot response after multiple retries: %v", err)
 		}
+
+		// Use the timeslot response as the final response
+		finalResponse = timeslotResponse
 	}
 
 	return finalResponse, nil
