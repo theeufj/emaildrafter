@@ -4,8 +4,16 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+
+	"github.com/gorilla/csrf"
 )
 
+var (
+	csrfMiddleware = csrf.Protect(
+		[]byte("your-strong-csrf-secret-key"), // Replace with a strong, randomly generated key
+		csrf.Secure(true),                     // Set to false in development if not using HTTPS
+	)
+)
 var (
 	xForwardedScheme = http.CanonicalHeaderKey("X-Forwarded-Scheme")
 	xForwardedProto  = http.CanonicalHeaderKey("X-Forwarded-Proto")
@@ -42,7 +50,7 @@ func getScheme(r *http.Request) string {
 
 // httpsForwardMiddleware checks for X-Forwarded-Proto and redirects
 // http to https
-func httpsForwardMiddleware(next http.Handler) http.Handler {
+func HttpsForwardMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		scheme := getScheme(r)
 		// Check for http
@@ -56,4 +64,92 @@ func httpsForwardMiddleware(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// HSTS Middleware to enforce HTTPS
+func HSTS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload")
+		next.ServeHTTP(w, r)
+	})
+}
+
+// ReferrerPolicy Middleware to control Referrer header behavior
+func ReferrerPolicy(policy string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Referrer-Policy", policy)
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// CSP Middleware to set the Content-Security-Policy header
+func CSP(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Construct your CSP policy string
+		policy := "default-src 'self'; " +
+			"script-src 'self' 'unsafe-inline' https://accounts.google.com https://apis.google.com; " +
+			"img-src 'self' data:; " +
+			"frame-src https://accounts.google.com; " +
+			"style-src 'self' https://cdn.tailwindcss.com" // Allow Tailwind CDN
+
+		w.Header().Set("Content-Security-Policy", policy)
+		next.ServeHTTP(w, r)
+	})
+}
+
+// ContentTypeOptions Middleware to set the X-Content-Type-Options header
+func ContentTypeOptions(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		next.ServeHTTP(w, r)
+	})
+}
+
+// SecurityHeaders Middleware to set common security headers
+func SecurityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// 1. X-Frame-Options (Clickjacking Protection)
+		w.Header().Set("X-Frame-Options", "DENY")
+
+		// 2. Permissions-Policy (Feature Control)
+		w.Header().Set("Permissions-Policy", "geolocation=(), microphone=()") // Customize as needed
+
+		// 3. Cache-Control (Caching for Sensitive Pages)
+		if r.URL.Path == "/login" || r.URL.Path == "/account" { // Example paths
+			w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, private")
+			w.Header().Set("Pragma", "no-cache")
+			w.Header().Set("Expires", "0")
+		}
+
+		// 4. Content-Security-Policy (CSP)
+		policy := "default-src 'self'; " +
+			"script-src 'self' 'unsafe-inline' https://accounts.google.com https://apis.google.com; " +
+			"img-src 'self' data:; " +
+			"frame-src https://accounts.google.com; " +
+			"style-src 'self' https://cdn.tailwindcss.com" // Adjust for your Tailwind setup
+
+		w.Header().Set("Content-Security-Policy", policy)
+
+		// 5. Referrer-Policy
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+
+		// 6. X-Content-Type-Options (MIME-Sniffing Protection)
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+// CSRF Middleware using Gorilla CSRF
+func CSRF(next http.Handler) http.Handler {
+	return csrf.Protect(
+		[]byte("knZF1jYyUhn1yq6HZVmZ8iOmj5O/kKEY+A/YLhTnnobwwN1UgVwWHv5bKvSIOU+JMNDQUl2OcHACsz1pbJzAXBQavSEW22Mb1ZK9o5kbtXk="), // Replace with a strong, randomly generated key
+		csrf.Secure(true), // Set to false in development if not using HTTPS
+	)(next)
+}
+
+func CSRFProtect(next http.Handler) http.Handler {
+	return csrfMiddleware(next)
 }

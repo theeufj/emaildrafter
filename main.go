@@ -145,6 +145,8 @@ func setupDatabase(dbHost string) (*sql.DB, error) {
 }
 
 func setupRoutes(r *mux.Router) {
+	r.Use(middleware.HSTS)
+	r.Use(middleware.SecurityHeaders)
 	fs := http.FileServer(http.Dir("static"))
 	r.PathPrefix("/static").Handler(http.StripPrefix("/static", fs))
 
@@ -160,7 +162,11 @@ func setupRoutes(r *mux.Router) {
 	r.HandleFunc("/login/callback", callbackHandler)
 
 	r.Handle("/admin", middleware.AuthMiddleware(http.HandlerFunc(AdminHandler(*queries)))).Methods("GET")
-	r.HandleFunc("/setpersona", SetPersonas(*queries)).Methods("POST")
+	r.Handle("/setpersona",
+		middleware.CSRFProtect( // Wrap with CSRF middleware
+			http.HandlerFunc(SetPersonas(*queries)), // Your handler
+		),
+	).Methods("POST")
 	r.HandleFunc("/unlink", Unlink(*queries)).Methods("POST")
 	r.HandleFunc("/logout", LogoutHandler).Methods("GET")
 }

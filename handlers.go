@@ -11,6 +11,7 @@ import (
 	"os"
 
 	"github.com/google/uuid"
+	"github.com/gorilla/csrf"
 )
 
 var (
@@ -73,14 +74,16 @@ func AdminHandler(q store.Queries) func(http.ResponseWriter, *http.Request) {
 		if err != nil {
 			log.Println(err)
 		}
+		csrfToken := csrf.Token(r)
 		logs, err := q.GetLogsByUserID(r.Context(), user.ID)
 		if err != nil {
 			err = portal.Execute(w, nil)
 		} else {
 			// create a map of user and logs
 			data := map[string]interface{}{
-				"User": user,
-				"Logs": logs,
+				"User":      user,
+				"Logs":      logs,
+				"csrfToken": csrfToken,
 			}
 			err = portal.Execute(w, data)
 		}
@@ -128,8 +131,7 @@ func SetPersonas(q store.Queries) func(http.ResponseWriter, *http.Request) {
 			UserID  string `json:"user_id"`
 			Persona string `json:"persona`
 		}
-		log.Println("This is a cool log")
-		log.Println(r.Body)
+
 		err := json.NewDecoder(r.Body).Decode(&reqBody)
 		if err != nil {
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
