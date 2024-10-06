@@ -227,6 +227,7 @@ func createServer(r *mux.Router, mode, port string) *http.Server {
 
 func Drafter(queries store.Queries, userID uuid.UUID) error {
 	token, err := middleware.HandleRefreshToken(userID, &queries)
+	log.Println("TOKEN IS AS FOLLOWS:", token.RefreshToken)
 	if err != nil {
 		logger.Error("Failed to handle refresh token", "userID", userID, "error", err)
 		return err
