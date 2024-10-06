@@ -36,8 +36,8 @@
 </head>
 
 
-<body class="leading-normal tracking-normal text-gray-900" style="font-family: 'Source Sans Pro', sans-serif;">
-    <div class="h-screen pb-14 bg-right bg-cover" style="background-image:url('static/stylesheets/images/bg.svg');">
+<body class="h-screen leading-normal tracking-normal text-gray-900" style="font-family: 'Source Sans Pro', sans-serif;">
+    <div class="min-h-screen pb-14 bg-right bg-cover" style="background-image:url('static/stylesheets/images/bg.svg'); height:max-content">
         <!--Nav-->
         <div class="w-full container mx-auto p-6">
                 
@@ -63,26 +63,27 @@
         <div class="container px-6 mx-auto flex flex-wrap flex-col md:flex-row items-center">
             
             <!--Left Col-->
-            <div class="flex flex-col w-full  justify-center lg:items-start overflow-y-hidden">
+            <div class="flex flex-col w-full justify-center lg:items-start overflow-y-hidden">
                 <h1 class="my-4 text-3xl md:text-5xl text-purple-800 font-bold leading-tight text-center md:text-left slide-in-bottom-h1">
-                    Meet the email genie that works while you unwind: Effortless replies, crafted even when you're offline.</h1>
+                    Meet your email genie that works while you unwind: Effortless replies, crafted even when you're offline.
+                </h1>
                 <p class="leading-normal text-base md:text-2xl mb-8 text-center md:text-left slide-in-bottom-subtitle">
-                    Here's how it magically untangles your inbox:
+                    Here's how we simplify your inbox and help you stay organized:
                 </p>
                 <p class="">
-                    Imagine an AI assistant who writes your emails. That's AI Drafter! It scans your inbox, understands the context, and generates tailored draft responses, ready for your review. Less typing, more control, and emails that shine - powered by AI Drafter.                
+                    Imagine having an AI assistant that drafts your emails for you. That's AI Drafter! Our tool scans your inbox, understands the context of your messages, and generates tailored draft responses, ready for your review. Enjoy less typing, greater control, and emails that shine—powered by AI Drafter.
                 </p>
-            </br>
-            <div>
-                   <p  class="leading-normal text-base md:text-2xl mb-8 text-center md:text-left slide-in-bottom-subtitle" >How it works! </p>
-                   <ul class="list-decimal list-outside">
-                    <li>1. Select your email provider. Either Google or Microsoft</li>
-                    <li>2. Login with your provider, we setup everthing behind the scenes.</li>
-                    <li>3. Every 15 minutes we check your inbox for unread emails. We then draft responses to those emails.</li>
-                    <li>4. It's that simple</li>
-                  </ul>
-             </div>
-                
+                <br />
+                <div>
+                    <p class="leading-normal text-base md:text-2xl mb-8 text-center md:text-left slide-in-bottom-subtitle">How It Works:</p>
+                    <ul class="list-decimal list-outside">
+                        <li>1. Choose your email provider: Google or Microsoft (Coming Soon).</li>
+                        <li>2. Log in securely; we handle everything behind the scenes.</li>
+                        <li>3. Every 15 minutes, we check your inbox for unread emails and draft responses on your behalf.</li>
+                        <li>4. Additionally, we assist you in managing your calendar to keep your schedule organized.</li>
+                        <li>5. Rest assured, we prioritize your privacy — <b>we do not store any of your data</b></li>
+                    </ul>
+                </div>
             </div>
             <a href="/login" class="bg-purple-500 hover:bg-purple-800 text-white font-bold py-2 px-4 rounded-full mt-2">Sign up today!</a>
             <!--Right Col-->
@@ -99,18 +100,23 @@
     
     </div>
                 <!--Footer-->
-
-                <footer>
-                    <div class="container px-6 mx-auto flex flex-wrap flex-col md:flex-row items-center bottom-0">
-                        <a class="text-gray-500 no-underline hover:no-underline pl-2" href="#">&copy; AiDrafter 2023</a> <p class="pl-2"> |</p>
-                        <a class="text-gray-500 no-underline hover:no-underline pl-2" href="/terms_of_use">Terms of Use</a> <p class="pl-2"> |</p>
-                        <a class="text-gray-500 no-underline hover:no-underline pl-2" href="/Privacy_Policy_v2"> Privacy Policy</a>
-    
-                        <p>
-                        AiDrafter uses and transfer of information received from Google APIs to any other app will adhere to <a style="text-decoration: underline; "href="https://developers.google.com/terms/api-services-user-data-policy"></a> Google API Services User Data Policy</a>, including the Limited Use requirements.
-                        </p> 
-                    </div>
-                </footer>
+        <!-- Footer -->
+        <footer class="bg-white border-t border-gray-400 shadow mt-auto">
+            <div class="container px-6 mx-auto flex flex-wrap flex-col md:flex-row items-center">
+                <a class="text-gray-500 no-underline hover:no-underline pl-2" href="#">&copy; AiDrafter 2024</a>
+                <p class="pl-2 hidden md:block"> |</p>
+                <a class="text-gray-500 no-underline hover:no-underline pl-2" href="/terms_of_use">Terms of Use</a>
+                <p class="pl-2 hidden md:block"> |</p>
+                <a class="text-gray-500 no-underline hover:no-underline pl-2" href="/Privacy_Policy_v2"> Privacy Policy</a>
+                <p class="pl-2"> |</p>
+                <p class="text-gray-500 no-underline hover:no-underline pl-2">
+                    AiDrafter uses and transfers information received from Google APIs in compliance with the 
+                    <a href="https://developers.google.com/terms/api-services-user-data-policy" style="text-decoration: underline;">
+                        Google API Services User Data Policy
+                    </a>, including the Limited Use requirements.
+                </p>
+            </div>
+        </footer>
     
       <!-- jQuery if you need it
       <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>

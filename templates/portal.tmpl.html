@@ -5,42 +5,70 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Drafter Customer Portal</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: 'rgba(139, 92, 246, var(--tw-bg-opacity))'
+                    }
+                }
+            }
+        }
+    </script>
 </head>
-<body class="bg-gray-100 p-6">
-    <div class="max-w-2xl mx-auto bg-white p-8 rounded-lg shadow-md">
-        <h1 class="text-3xl font-bold text-gray-800 mb-6">AI Drafter Customer Portal</h1>
-        
-        <section class="mb-8">
-            <h2 class="text-2xl font-semibold text-gray-700 mb-4">Account Management</h2>
-            Email Linked: {{.User.Email}}
-            <br>
-            <button id="unlinkGmail" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded">
-                Unlink Gmail Account 
-            </button>
-        </section>
-        
-        <section>
-            <h2 class="text-2xl font-semibold text-gray-700 mb-4">User Persona Setup</h2>
-            <p>Tell us a little about yourself. This will help the make the drafts tailored to you.</p>
-            <form id="personaForm" class="space-y-4">
-                <div>
-                    <input type="hidden" name="user_id" value="{{.User.ID}}">
-                    <label for="persona" class="block text-sm font-medium text-gray-700 mb-2">Enter your persona:</label>
-                    <textarea id="persona" name="persona" rows="4" class="w-full px-3 py-2 text-gray-700 border rounded-lg focus:outline-none" placeholder="Describe your persona here..." >{{.User.Persona.String}}</textarea>
-                </div>
-                <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">
-                    Set Persona
+<body class="bg-gray-100 flex flex-col min-h-screen">
+    <!-- Navbar -->
+    <nav class="bg-primary text-white p-4">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-2xl font-bold">AI Drafter</h1>
+            <div>
+                <span class="mr-4">{{.User.Email}}</span>
+                <a href="/logout" class="hover:underline">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="container mx-auto flex-grow p-6">
+        <div class="bg-white p-8 rounded-lg shadow-md">
+            <h2 class="text-3xl font-bold text-gray-800 mb-6">Customer Portal</h2>
+            
+            <section class="mb-8">
+                <h3 class="text-2xl font-semibold text-gray-700 mb-4">Account Management</h3>
+                <button id="unlinkGmail" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded">
+                    Unlink Gmail Account 
                 </button>
-            </form>
-        </section>
-        
-        <div id="message" class="mt-6 text-sm font-semibold"></div>
-    </div>
+            </section>
+            
+            <section>
+                <h3 class="text-2xl font-semibold text-gray-700 mb-4">User Persona Setup</h3>
+                <p class="mb-4">Tell us a little about yourself. This will help make the drafts tailored to you.</p>
+                <form id="personaForm" class="space-y-4">
+                    <div>
+                        <input type="hidden" name="user_id" value="{{.User.ID}}">
+                        <label for="persona" class="block text-sm font-medium text-gray-700 mb-2">Enter your persona:</label>
+                        <textarea id="persona" name="persona" rows="4" class="w-full px-3 py-2 text-gray-700 border rounded-lg focus:outline-none" placeholder="Describe your persona here...">{{.User.Persona.String}}</textarea>
+                    </div>
+                    <button type="submit" class="bg-primary hover:bg-opacity-90 text-white font-bold py-2 px-4 rounded">
+                        Set Persona
+                    </button>
+                </form>
+            </section>
+            
+            <div id="message" class="mt-6 text-sm font-semibold"></div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-800 text-white p-4 mt-8">
+        <div class="container mx-auto text-center">
+            <p>&copy; 2024 AI Drafter. All rights reserved.</p>
+        </div>
+    </footer>
 
     <script>
         document.getElementById('unlinkGmail').addEventListener('click', function() {
-            // Here you would typically send a request to your backend to unlink the account
-            // post a request too /unlink
             var id = document.getElementsByName('user_id')[0].value;
             fetch('/unlink', {
                 method: 'POST',
@@ -53,45 +81,40 @@
             })
             .then(response => response.json())
             .then(data => {
-            // For example, you might hide the unlink button and display a message
                 document.getElementById('message').textContent = 'Gmail account unlinked successfully!';
+                document.getElementById('message').className = 'mt-6 text-sm font-semibold text-green-600';
+            })
+            .catch((error) => {
+                document.getElementById('message').textContent = 'Error unlinking account: ' + error;
+                document.getElementById('message').className = 'mt-6 text-sm font-semibold text-red-600';
+            });
+        });
+
+        document.getElementById('personaForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            var persona = document.getElementById('persona').value;
+            var id = document.getElementsByName('user_id')[0].value;
+
+            fetch('/setpersona', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    persona: persona,
+                    user_id: id
+                }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('message').textContent = 'Persona set successfully!';
                 document.getElementById('message').className = 'mt-6 text-sm font-semibold text-green-600';
             })
             .catch((error) => {
                 document.getElementById('message').textContent = 'Error setting persona: ' + error;
                 document.getElementById('message').className = 'mt-6 text-sm font-semibold text-red-600';
             });
-            // Update the UI to reflect the unlinking
-
         });
-
-        document.getElementById('personaForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    var persona = document.getElementById('persona').value;
-    var id = document.getElementsByName('user_id')[0].value;
-
-
-    fetch('/setpersona', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            persona: persona, // Send the JSON object
-            user_id: id
-        }),
-    })
-    .then(response => response.json())
-    .then(data => {
-        document.getElementById('message').textContent = 'Persona set successfully!';
-        document.getElementById('message').className = 'mt-6 text-sm font-semibold text-green-600';
-    })
-    .catch((error) => {
-        document.getElementById('message').textContent = 'Error setting persona: ' + error;
-        document.getElementById('message').className = 'mt-6 text-sm font-semibold text-red-600';
-    });
-});
-
     </script>
 </body>
 </html>
