@@ -213,9 +213,22 @@ func HandleRefreshToken(userID uuid.UUID, q *store.Queries) (*oauth2.Token, erro
 		return nil, fmt.Errorf("failed to decrypt refresh toke: %s", err)
 	}
 
+	accessToken, err := q.GetAccessTokenByUserId(context.TODO(), userID)
+	if err != nil {
+		return nil, fmt.Errorf("error retrieving refresh token: %w", err)
+	}
+	decryptedaccessToken, err := Decrypt(accessToken.String, os.Getenv("KEY"))
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt refresh toke: %s", err)
+	}
+
+	log.Println("This is the decrypted refresh token", decryptedRefreshToken)
+	log.Println("This is the decrypted refresh token", decryptedaccessToken)
 	tokenSource := config.TokenSource(context.Background(), &oauth2.Token{
 		RefreshToken: decryptedRefreshToken,
+		AccessToken:  decryptedaccessToken,
 	})
+	log.Println(tokenSource.Token())
 
 	newToken, err := refreshTokenWithRetry(tokenSource)
 	if err != nil {
