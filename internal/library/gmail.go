@@ -97,7 +97,6 @@ func ErrorHanlder(err error, line_number string) {
 	}
 }
 
-// drafts all releated information for a given email from a users authorised gamil account.
 func GmailCompose(token *oauth2.Token, user store.User, q *store.Queries) error {
 	ctx := context.Background()
 	client := config.Client(ctx, token)
@@ -113,9 +112,20 @@ func GmailCompose(token *oauth2.Token, user store.User, q *store.Queries) error 
 
 	for _, msg := range messages {
 		if shouldProcessMessage(msg) {
-			if err := processMessage(gmailService, msg, user, q); err != nil {
-				log.Printf("Error processing message %s: %v", msg.Id, err)
-				// Continue processing other messages
+			// Check if a draft already exists for this message
+			hasDraft, err := checkForExistingDraft(gmailService, msg.ThreadId)
+			if err != nil {
+				log.Printf("Error checking for existing draft for message %s: %v", msg.Id, err)
+				continue
+			}
+
+			if !hasDraft {
+				if err := processMessage(gmailService, msg, user, q); err != nil {
+					log.Printf("Error processing message %s: %v", msg.Id, err)
+					// Continue processing other messages
+				}
+			} else {
+				log.Printf("Skipping message %s: Draft already exists", msg.Id)
 			}
 		}
 	}
@@ -123,6 +133,14 @@ func GmailCompose(token *oauth2.Token, user store.User, q *store.Queries) error 
 	return nil
 }
 
+func checkForExistingDraft(gmailService *gmail.Service, threadId string) (bool, error) {
+	drafts, err := gmailService.Users.Drafts.List("me").Q(fmt.Sprintf("threadId:%s", threadId)).Do()
+	if err != nil {
+		return false, fmt.Errorf("failed to list drafts: %w", err)
+	}
+
+	return len(drafts.Drafts) > 0, nil
+}
 func shouldProcessMessage(msg *gmail.Message) bool {
 	for _, label := range msg.LabelIds {
 		if label == "DRAFT" || label == "CATEGORY_PROMOTIONS" {
