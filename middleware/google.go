@@ -251,7 +251,7 @@ func HandleRefreshToken(userID uuid.UUID, q *store.Queries) (*oauth2.Token, erro
 
 func refreshTokenWithRetry(tokenSource oauth2.TokenSource) (*oauth2.Token, error) {
 	var token *oauth2.Token
-	log.Println(tokenSource.Token())
+	log.Println("INSIDE REFRESH TOKEN:", tokenSource)
 	var err error
 	for i := 0; i < 3; i++ {
 		token, err = tokenSource.Token()
