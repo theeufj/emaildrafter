@@ -57,6 +57,19 @@ func main() {
 	log.Fatal(server.ListenAndServeTLS("", ""))
 }
 
+type multiHandler struct {
+	handlers []slog.Handler
+}
+
+// Handle implements slog.Handler.
+func (m multiHandler) Handle(ctx context.Context, r slog.Record) error {
+	for _, h := range m.handlers {
+		if err := h.Handle(ctx, r); err != nil {
+			return err // You might want to handle errors differently here
+		}
+	}
+	return nil
+}
 func setupLogger(mode string) {
 	// Create a shared options struct for all handlers
 	opts := &slog.HandlerOptions{
@@ -77,6 +90,7 @@ func setupLogger(mode string) {
 		}
 		fileHandler = slog.NewJSONHandler(logFile, opts)
 		opts.Level = slog.LevelInfo // Reduce log level for production file output
+		logger.Info("Testing logging in production mode")
 	} else {
 		// Use the console handler for file output in other modes
 		fileHandler = consoleHandler
