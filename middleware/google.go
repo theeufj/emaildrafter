@@ -221,14 +221,10 @@ func HandleRefreshToken(userID uuid.UUID, q *store.Queries) (*oauth2.Token, erro
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt refresh toke: %s", err)
 	}
-
-	log.Println("This is the decrypted refresh token", decryptedRefreshToken)
-	log.Println("This is the decrypted refresh token", decryptedaccessToken)
 	tokenSource := config.TokenSource(context.Background(), &oauth2.Token{
 		RefreshToken: decryptedRefreshToken,
 		AccessToken:  decryptedaccessToken,
 	})
-	log.Println(tokenSource.Token())
 
 	newToken, err := refreshTokenWithRetry(tokenSource)
 	if err != nil {
@@ -264,7 +260,6 @@ func HandleRefreshToken(userID uuid.UUID, q *store.Queries) (*oauth2.Token, erro
 
 func refreshTokenWithRetry(tokenSource oauth2.TokenSource) (*oauth2.Token, error) {
 	var token *oauth2.Token
-	log.Println("INSIDE REFRESH TOKEN:", tokenSource)
 	var err error
 	for i := 0; i < 3; i++ {
 		token, err = tokenSource.Token()
