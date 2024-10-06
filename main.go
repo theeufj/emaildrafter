@@ -9,6 +9,7 @@ import (
 	"emaildrafter/internal/flash"
 	"emaildrafter/internal/library"
 	"emaildrafter/middleware"
+	"fmt"
 	"log"
 	"log/slog"
 	"net/http"
@@ -57,15 +58,39 @@ func main() {
 }
 
 func setupLogger(mode string) {
+	// Create a shared options struct for all handlers
 	opts := &slog.HandlerOptions{
 		AddSource: true,
-		Level:     slog.LevelDebug,
+		Level:     slog.LevelDebug, // Debug level for development
 	}
-	var handler slog.Handler = slog.NewTextHandler(os.Stdout, opts)
+
+	// Create a text handler for console output
+	consoleHandler := slog.NewTextHandler(os.Stdout, opts)
+
+	var fileHandler slog.Handler
 	if mode == "prod" {
-		handler = slog.NewJSONHandler(os.Stdout, opts)
+		// Create a JSON handler for file output in production
+		logFile, err := os.OpenFile("app.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0640) // Reduced permissions
+		if err != nil {
+			fmt.Printf("Error opening log file: %v\n", err)
+			os.Exit(1)
+		}
+		fileHandler = slog.NewJSONHandler(logFile, opts)
+		opts.Level = slog.LevelInfo // Reduce log level for production file output
+	} else {
+		// Use the console handler for file output in other modes
+		fileHandler = consoleHandler
 	}
-	logger = slog.New(handler)
+
+	// Create the logger with both handlers
+	var handlers []slog.Handler
+	handlers = append(handlers, consoleHandler)
+	if fileHandler != nil {
+		handlers = append(handlers, fileHandler)
+	}
+
+	// Use the MuxHandler to combine handlers for structured logging
+	logger = slog.New(slog.NewJSONHandler(os.Stdout, opts)) // Using JSON handler for better structure
 }
 
 func setupRouter() *mux.Router {
@@ -150,7 +175,11 @@ func runPeriodicDrafter() {
 			if user.Refreshtoken.Valid {
 				if err := Drafter(*queries, user.ID); err != nil {
 					logger.Error("Failed to run drafter", "userID", user.ID, "error", err)
+				} else {
+					logger.Info("Successfully ran drafter for user", "userID", user.ID)
 				}
+			} else {
+				logger.Warn("User does not have a valid refresh token", "userID", user.ID)
 			}
 		}
 	}
@@ -185,13 +214,16 @@ func createServer(r *mux.Router, mode, port string) *http.Server {
 func Drafter(queries store.Queries, userID uuid.UUID) error {
 	token, err := middleware.HandleRefreshToken(userID, &queries)
 	if err != nil {
+		logger.Error("Failed to handle refresh token", "userID", userID, "error", err)
 		return err
 	}
 
 	user, err := queries.GetUserByID(context.Background(), userID)
 	if err != nil {
+		logger.Error("Failed to get user by ID", "userID", userID, "error", err)
 		return err
 	}
 
+	logger.Info("Composing email for user", "userID", userID)
 	return library.GmailCompose(token, user, &queries)
 }
