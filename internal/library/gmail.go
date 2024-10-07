@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
@@ -28,6 +29,7 @@ import (
 // Google OAuth2 Configuration
 var (
 	config *oauth2.Config
+	logger *slog.Logger
 )
 
 // TimeSlot represents a block of time with a start and end.
@@ -125,7 +127,7 @@ func GmailCompose(token *oauth2.Token, user store.User, q *store.Queries) error 
 
 			// Check if a draft already exists for this message
 			hasDraft, err := checkForExistingDraft(gmailService, msg.ThreadId)
-			log.Println("Has Draft:", hasDraft)
+			logger.Info("Has Draft:", hasDraft)
 
 			if err != nil {
 				log.Printf("Error checking for existing draft for message %s: %v", msg.Id, err)
@@ -133,7 +135,7 @@ func GmailCompose(token *oauth2.Token, user store.User, q *store.Queries) error 
 			}
 
 			if !hasDraft {
-				log.Println("in has draft")
+				logger.Info("Inside has draft")
 				if err := processMessage(gmailService, msg, user, q); err != nil {
 					log.Printf("Error processing message %s: %v", msg.Id, err)
 					continue
