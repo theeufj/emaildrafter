@@ -181,7 +181,7 @@ func callbackHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func runPeriodicDrafter() {
-	ticker := time.NewTicker(60 * time.Minute)
+	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
 
 	for range ticker.C {
