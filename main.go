@@ -62,7 +62,7 @@ type multiHandler struct {
 }
 
 // Handle implements slog.Handler.
-func (m multiHandler) Handle(ctx context.Context, r slog.Record) error {
+func (m *multiHandler) Handle(ctx context.Context, r slog.Record) error {
 	for _, h := range m.handlers {
 		if err := h.Handle(ctx, r); err != nil {
 			return err // You might want to handle errors differently here
@@ -70,6 +70,36 @@ func (m multiHandler) Handle(ctx context.Context, r slog.Record) error {
 	}
 	return nil
 }
+
+// Enabled implements slog.Handler.
+func (m *multiHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	// If any handler is enabled for this level, return true
+	for _, h := range m.handlers {
+		if h.Enabled(ctx, level) {
+			return true
+		}
+	}
+	return false
+}
+
+// WithAttrs implements slog.Handler.
+func (m *multiHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	handlers := make([]slog.Handler, len(m.handlers))
+	for i, h := range m.handlers {
+		handlers[i] = h.WithAttrs(attrs)
+	}
+	return &multiHandler{handlers: handlers}
+}
+
+// WithGroup implements slog.Handler.
+func (m *multiHandler) WithGroup(name string) slog.Handler {
+	handlers := make([]slog.Handler, len(m.handlers))
+	for i, h := range m.handlers {
+		handlers[i] = h.WithGroup(name)
+	}
+	return &multiHandler{handlers: handlers}
+}
+
 func setupLogger(mode string) {
 	// Create a shared options struct for all handlers
 	opts := &slog.HandlerOptions{
@@ -80,31 +110,29 @@ func setupLogger(mode string) {
 	// Create a text handler for console output
 	consoleHandler := slog.NewTextHandler(os.Stdout, opts)
 
-	var fileHandler slog.Handler
+	// Create a file for logging
+	logFile, err := os.OpenFile("app.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	if err != nil {
+		fmt.Printf("Error opening log file: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Create a JSON handler for file output
+	fileHandler := slog.NewJSONHandler(logFile, opts)
+
+	// Adjust log levels based on mode
 	if mode == "prod" {
-		// Create a JSON handler for file output in production
-		logFile, err := os.OpenFile("app.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0600) // Reduced permissions
-		if err != nil {
-			fmt.Printf("Error opening log file: %v\n", err)
-			os.Exit(1)
-		}
-		fileHandler = slog.NewJSONHandler(logFile, opts)
-		opts.Level = slog.LevelInfo // Reduce log level for production file output
-		logger.Info("Testing logging in production mode")
-	} else {
-		// Use the console handler for file output in other modes
-		fileHandler = consoleHandler
+		opts.Level = slog.LevelInfo // Reduce log level for production
+	}
+	// Create a multi-handler that writes to both console and file
+	multiHandler := &multiHandler{
+		handlers: []slog.Handler{consoleHandler, fileHandler},
 	}
 
-	// Create the logger with both handlers
-	var handlers []slog.Handler
-	handlers = append(handlers, consoleHandler)
-	if fileHandler != nil {
-		handlers = append(handlers, fileHandler)
-	}
+	// Create the logger with the multi-handler
+	logger = slog.New(multiHandler)
 
-	// Use the MuxHandler to combine handlers for structured logging
-	logger = slog.New(slog.NewJSONHandler(os.Stdout, opts)) // Using JSON handler for better structure
+	logger.Info("Logging setup complete", "mode", mode)
 }
 
 func setupRouter() *mux.Router {
