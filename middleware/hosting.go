@@ -124,13 +124,14 @@ func SecurityHeaders(next http.Handler) http.Handler {
 		}
 
 		// 4. Content-Security-Policy (CSP)
+		// Construct your CSP policy string
+		//https://unpkg.com
 		policy := "default-src 'self'; " +
-			"script-src 'self' 'unsafe-inline' https://accounts.google.com https://apis.google.com https://cdn.tailwindcss.com; " +
+			"script-src 'self' 'unsafe-inline' https://accounts.google.com https://apis.google.com https://cdn.tailwindcss.com; " + // Removed unpkg.com from script-src
 			"img-src 'self' data:; " +
 			"frame-src https://accounts.google.com; " +
-			"style-src 'self' https://cdn.tailwindcss.com 'unsafe-inline'" // Allow inline styles
-			/// Adjust for your Tailwind setup
-
+			"style-src 'self' https://cdn.tailwindcss.com 'unsafe-inline' https://use.fontawesome.com https://fonts.googleapis.com https://unpkg.com;" + // Added fonts.googleapis.com for Google Fonts
+			"font-src 'self' https://use.fontawesome.com fonts.gstatic.com;" // Maintains font-src directive// Maintains font-src directive
 		w.Header().Set("Content-Security-Policy", policy)
 
 		// 5. Referrer-Policy

@@ -1,0 +1,33 @@
+{"time":"2024-10-07T13:20:03.624873+11:00","level":"INFO","source":{"function":"main.setupLogger","file":"/Users/joshtheeuf/Github/emaildrafter/main.go","line":135},"msg":"Logging setup complete","mode":"dev"}
+{"time":"2024-10-07T13:20:03.827098+11:00","level":"INFO","source":{"function":"main.runPeriodicDrafter","file":"/Users/joshtheeuf/Github/emaildrafter/main.go","line":212},"msg":"Starting Drafter"}
+{"time":"2024-10-07T13:20:03.83135+11:00","level":"INFO","source":{"function":"main.main","file":"/Users/joshtheeuf/Github/emaildrafter/main.go","line":56},"msg":"Your app is running","host":":8080"}
+{"time":"2024-10-07T13:21:08.825029+11:00","level":"INFO","source":{"function":"main.setupLogger","file":"/Users/joshtheeuf/Github/emaildrafter/main.go","line":135},"msg":"Logging setup complete","mode":"dev"}
+{"time":"2024-10-07T13:21:08.98749+11:00","level":"INFO","source":{"function":"main.runPeriodicDrafter","file":"/Users/joshtheeuf/Github/emaildrafter/main.go","line":212},"msg":"Starting Drafter"}
+{"time":"2024-10-07T13:21:08.988913+11:00","level":"INFO","source":{"function":"main.main","file":"/Users/joshtheeuf/Github/emaildrafter/main.go","line":56},"msg":"Your app is running","host":":8080"}
+{"time":"2024-10-07T13:22:36.398951+11:00","level":"INFO","source":{"function":"main.setupLogger","file":"/Users/joshtheeuf/Github/emaildrafter/main.go","line":135},"msg":"Logging setup complete","mode":"dev"}
+{"time":"2024-10-07T13:22:36.552945+11:00","level":"INFO","source":{"function":"main.runPeriodicDrafter","file":"/Users/joshtheeuf/Github/emaildrafter/main.go","line":212},"msg":"Starting Drafter"}
+{"time":"2024-10-07T13:22:36.553954+11:00","level":"INFO","source":{"function":"main.main","file":"/Users/joshtheeuf/Github/emaildrafter/main.go","line":56},"msg":"Your app is running","host":":8080"}
+{"time":"2024-10-07T13:23:36.966226+11:00","level":"INFO","source":{"function":"main.setupLogger","file":"/Users/joshtheeuf/Github/emaildrafter/main.go","line":135},"msg":"Logging setup complete","mode":"dev"}
+{"time":"2024-10-07T13:23:37.120115+11:00","level":"INFO","source":{"function":"main.runPeriodicDrafter","file":"/Users/joshtheeuf/Github/emaildrafter/main.go","line":212},"msg":"Starting Drafter"}
+{"time":"2024-10-07T13:23:37.121401+11:00","level":"INFO","source":{"function":"main.main","file":"/Users/joshtheeuf/Github/emaildrafter/main.go","line":56},"msg":"Your app is running","host":":8080"}
+{"time":"2024-10-07T13:25:40.268024+11:00","level":"INFO","source":{"function":"main.setupLogger","file":"/Users/joshtheeuf/Github/emaildrafter/main.go","line":135},"msg":"Logging setup complete","mode":"dev"}
+{"time":"2024-10-07T13:25:40.458109+11:00","level":"INFO","source":{"function":"main.runPeriodicDrafter","file":"/Users/joshtheeuf/Github/emaildrafter/main.go","line":212},"msg":"Starting Drafter"}
+{"time":"2024-10-07T13:25:40.45891+11:00","level":"INFO","source":{"function":"main.main","file":"/Users/joshtheeuf/Github/emaildrafter/main.go","line":56},"msg":"Your app is running","host":":8080"}
+{"time":"2024-10-07T13:26:18.726306+11:00","level":"INFO","source":{"function":"main.setupLogger","file":"/Users/joshtheeuf/Github/emaildrafter/main.go","line":135},"msg":"Logging setup complete","mode":"dev"}
+{"time":"2024-10-07T13:26:18.874761+11:00","level":"INFO","source":{"function":"main.runPeriodicDrafter","file":"/Users/joshtheeuf/Github/emaildrafter/main.go","line":212},"msg":"Starting Drafter"}
+{"time":"2024-10-07T13:26:18.875764+11:00","level":"INFO","source":{"function":"main.main","file":"/Users/joshtheeuf/Github/emaildrafter/main.go","line":56},"msg":"Your app is running","host":":8080"}
+{"time":"2024-10-07T13:27:23.909772+11:00","level":"INFO","source":{"function":"main.setupLogger","file":"/Users/joshtheeuf/Github/emaildrafter/main.go","line":135},"msg":"Logging setup complete","mode":"dev"}
+{"time":"2024-10-07T13:27:24.058607+11:00","level":"INFO","source":{"function":"main.runPeriodicDrafter","file":"/Users/joshtheeuf/Github/emaildrafter/main.go","line":212},"msg":"Starting Drafter"}
+{"time":"2024-10-07T13:27:24.060315+11:00","level":"INFO","source":{"function":"main.main","file":"/Users/joshtheeuf/Github/emaildrafter/main.go","line":56},"msg":"Your app is running","host":":8080"}
+{"time":"2024-10-07T13:28:07.042379+11:00","level":"INFO","source":{"function":"main.setupLogger","file":"/Users/joshtheeuf/Github/emaildrafter/main.go","line":135},"msg":"Logging setup complete","mode":"dev"}
+{"time":"2024-10-07T13:28:07.191804+11:00","level":"INFO","source":{"function":"main.runPeriodicDrafter","file":"/Users/joshtheeuf/Github/emaildrafter/main.go","line":212},"msg":"Starting Drafter"}
+{"time":"2024-10-07T13:28:07.192722+11:00","level":"INFO","source":{"function":"main.main","file":"/Users/joshtheeuf/Github/emaildrafter/main.go","line":56},"msg":"Your app is running","host":":8080"}
+{"time":"2024-10-07T13:28:38.049429+11:00","level":"INFO","source":{"function":"main.setupLogger","file":"/Users/joshtheeuf/Github/emaildrafter/main.go","line":135},"msg":"Logging setup complete","mode":"dev"}
+{"time":"2024-10-07T13:28:38.232975+11:00","level":"INFO","source":{"function":"main.runPeriodicDrafter","file":"/Users/joshtheeuf/Github/emaildrafter/main.go","line":212},"msg":"Starting Drafter"}
+{"time":"2024-10-07T13:28:38.233744+11:00","level":"INFO","source":{"function":"main.main","file":"/Users/joshtheeuf/Github/emaildrafter/main.go","line":56},"msg":"Your app is running","host":":8080"}
+{"time":"2024-10-07T13:29:34.973455+11:00","level":"INFO","source":{"function":"main.setupLogger","file":"/Users/joshtheeuf/Github/emaildrafter/main.go","line":135},"msg":"Logging setup complete","mode":"dev"}
+{"time":"2024-10-07T13:29:35.13066+11:00","level":"INFO","source":{"function":"main.runPeriodicDrafter","file":"/Users/joshtheeuf/Github/emaildrafter/main.go","line":212},"msg":"Starting Drafter"}
+{"time":"2024-10-07T13:29:35.13167+11:00","level":"INFO","source":{"function":"main.main","file":"/Users/joshtheeuf/Github/emaildrafter/main.go","line":56},"msg":"Your app is running","host":":8080"}
+{"time":"2024-10-07T13:30:26.333779+11:00","level":"INFO","source":{"function":"main.setupLogger","file":"/Users/joshtheeuf/Github/emaildrafter/main.go","line":135},"msg":"Logging setup complete","mode":"dev"}
+{"time":"2024-10-07T13:30:26.480211+11:00","level":"INFO","source":{"function":"main.runPeriodicDrafter","file":"/Users/joshtheeuf/Github/emaildrafter/main.go","line":212},"msg":"Starting Drafter"}
+{"time":"2024-10-07T13:30:26.481254+11:00","level":"INFO","source":{"function":"main.main","file":"/Users/joshtheeuf/Github/emaildrafter/main.go","line":56},"msg":"Your app is running","host":":8080"}
