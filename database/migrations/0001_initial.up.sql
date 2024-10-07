@@ -35,3 +35,8 @@ Alter table Users add column accessToken TEXT;
 Alter table Users add column expiry TIME;
 Alter table Users add column tokenType TEXT;
 Alter table Users add column persona TEXT;
+
+CREATE TABLE processed_emails (
+    message_id TEXT PRIMARY KEY,
+    processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

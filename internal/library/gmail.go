@@ -112,6 +112,17 @@ func GmailCompose(token *oauth2.Token, user store.User, q *store.Queries) error 
 
 	for _, msg := range messages {
 		if shouldProcessMessage(msg) {
+			// Check if the message has already been processed
+			processed, err := q.IsMessageProcessed(ctx, msg.Id)
+			if err != nil {
+				log.Printf("Error checking if message %s is processed: %v", msg.Id, err)
+				continue
+			}
+			if processed {
+				log.Printf("Skipping message %s: Already processed", msg.Id)
+				continue
+			}
+
 			// Check if a draft already exists for this message
 			hasDraft, err := checkForExistingDraft(gmailService, msg.ThreadId)
 			if err != nil {
@@ -122,7 +133,12 @@ func GmailCompose(token *oauth2.Token, user store.User, q *store.Queries) error 
 			if !hasDraft {
 				if err := processMessage(gmailService, msg, user, q); err != nil {
 					log.Printf("Error processing message %s: %v", msg.Id, err)
-					// Continue processing other messages
+					continue
+				}
+
+				// Mark the message as processed
+				if err := q.MarkMessageAsProcessed(ctx, msg.Id); err != nil {
+					log.Printf("Error marking message %s as processed: %v", msg.Id, err)
 				}
 			} else {
 				log.Printf("Skipping message %s: Draft already exists", msg.Id)

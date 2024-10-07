@@ -150,7 +150,7 @@ func cacheControlMiddleware(next http.Handler) http.Handler {
 
 func getDBHost(mode string) string {
 	if mode == "dev" {
-		return "postgres://postgres:jc194980!@ec2-13-210-207-191.ap-southeast-2.compute.amazonaws.com:5432/emaildrafter"
+		return "postgres://postgres:jc194980!@ec2-13-210-207-191.ap-southeast-2.compute.amazonaws.com:5432/emaildrafterDev"
 	}
 	// TODO: Modify this for production database
 	return "postgres://postgres:jc194980!@ec2-13-210-207-191.ap-southeast-2.compute.amazonaws.com:5432/emaildrafter"
