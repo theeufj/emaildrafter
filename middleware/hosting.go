@@ -125,10 +125,11 @@ func SecurityHeaders(next http.Handler) http.Handler {
 
 		// 4. Content-Security-Policy (CSP)
 		policy := "default-src 'self'; " +
-			"script-src 'self' 'unsafe-inline' https://accounts.google.com https://apis.google.com; " +
+			"script-src 'self' 'unsafe-inline' https://accounts.google.com https://apis.google.com https://cdn.tailwindcss.com; " +
 			"img-src 'self' data:; " +
 			"frame-src https://accounts.google.com; " +
-			"style-src 'self' https://cdn.tailwindcss.com" // Adjust for your Tailwind setup
+			"style-src 'self' https://cdn.tailwindcss.com 'unsafe-inline'" // Allow inline styles
+			/// Adjust for your Tailwind setup
 
 		w.Header().Set("Content-Security-Policy", policy)
 
