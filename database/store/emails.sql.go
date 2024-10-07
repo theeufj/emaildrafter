@@ -22,7 +22,7 @@ func (q *Queries) IsMessageProcessed(ctx context.Context, messageID string) (boo
 
 const markMessageAsProcessed = `-- name: MarkMessageAsProcessed :exec
 INSERT INTO processed_emails (message_id) VALUES ($1)
-ON CONFLICT (message_id) DO UPDATE SET message_id = EXCLUDED.message_id
+ON CONFLICT (message_id) DO NOTHING
 RETURNING message_id
 `
 
