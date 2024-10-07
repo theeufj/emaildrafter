@@ -670,9 +670,22 @@ func CalendarHandler(user store.User, queries *store.Queries) ([]string, error) 
 		return nil, fmt.Errorf("failed to decrypt refresh token: %v", err)
 	}
 
+	// Fetch the user's refresh token from the database
+	accessToken, err := queries.GetAccessTokenByUserId(context.Background(), user.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve refresh token: %v", err)
+	}
+
+	// Decrypt the refresh token
+	decryptedAccessToken, err := middleware.Decrypt(accessToken.String, os.Getenv("KEY"))
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt refresh token: %v", err)
+	}
+
 	// Create token source with the decrypted refresh token
 	tokenSource := config.TokenSource(context.Background(), &oauth2.Token{
 		RefreshToken: decryptedRefreshToken,
+		AccessToken:  decryptedAccessToken,
 	})
 
 	// Refresh the token

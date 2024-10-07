@@ -210,7 +210,7 @@ func callbackHandler(w http.ResponseWriter, r *http.Request) {
 
 func runPeriodicDrafter() {
 	logger.Info("Starting Drafter")
-	ticker := time.NewTicker(15 * time.Minute)
+	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 
 	for range ticker.C {
