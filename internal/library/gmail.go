@@ -114,12 +114,11 @@ func GmailCompose(token *oauth2.Token, user store.User, q *store.Queries) error 
 
 	for _, msg := range messages {
 		if shouldProcessMessage(msg) {
-			logger.Info("In should process")
 
 			// Check if the message has already been processed
 			processed, err := q.IsMessageProcessed(ctx, msg.Id)
 			if err != nil {
-				logger.Info("Error checking if message %s is processed: %v", msg.Id, err)
+				log.Printf("Error checking if message %s is processed: %v", msg.Id, err)
 			}
 
 			if processed {
@@ -128,15 +127,15 @@ func GmailCompose(token *oauth2.Token, user store.User, q *store.Queries) error 
 
 			// Check if a draft already exists for this message
 			hasDraft, err := checkForExistingDraft(gmailService, msg.ThreadId)
-			logger.Info("Has Draft: "+strconv.FormatBool(hasDraft), nil)
+			log.Printf("Has Draft: "+strconv.FormatBool(hasDraft), nil)
 
 			if err != nil {
-				logger.Info("Error checking for existing draft for message %s: %v", msg.Id, err)
+				log.Printf("Error checking for existing draft for message %s: %v", msg.Id, err)
 				continue
 			}
 
 			if !hasDraft {
-				logger.Info("Inside has draft")
+				log.Printf("Inside has draft")
 				if err := processMessage(gmailService, msg, user, q); err != nil {
 					log.Printf("Error processing message %s: %v", msg.Id, err)
 					continue
@@ -296,8 +295,6 @@ func DraftResponse(bodyMessage string, user store.User, queries *store.Queries) 
 	bookingRequested, prompt := promptStringCreator(user, bodyMessage)
 	log.Println("Prompt is: " + prompt)
 
-	model := client.GenerativeModel("gemini-1.5-pro")
-
 	// Function to generate content using the specified model
 	generateContent := func(model *genai.GenerativeModel) (string, error) {
 		resp, err := model.GenerateContent(ctx, genai.Text(prompt))
@@ -310,11 +307,41 @@ func DraftResponse(bodyMessage string, user store.User, queries *store.Queries) 
 		return responseString, nil
 	}
 
+	// Modified BackoffRetry function with immediate model switch on 429 error
+	BackoffRetry := func(attempts int, initialDelay time.Duration, fn func() (string, error)) (string, error) {
+		delay := initialDelay
+		for i := 0; i < attempts; i++ {
+			result, err := fn()
+			if err == nil {
+				return result, nil
+			}
+
+			// Check if the error is a 429 (Too Many Requests)
+			if strings.Contains(err.Error(), "429") {
+				log.Printf("Received 429 error. Switching to alternative model immediately.\n")
+				// Call fn() one more time, which should now use the alternative model
+				result, err := fn()
+				return result, err
+			}
+
+			log.Printf("Attempt %d failed: %v. Retrying in %v...\n", i+1, err, delay)
+
+			// Add jitter to avoid thundering herd problem
+			jitter := time.Duration(rand.Int63n(int64(delay / 2)))
+			time.Sleep(delay + jitter)
+
+			// Exponential backoff
+			delay *= 2
+		}
+		return "", errors.New("all retry attempts failed")
+	}
+
 	// Retry the content generation with backoff and error handling
 	responseString, err := BackoffRetry(5, 2*time.Second, func() (string, error) {
 		model := client.GenerativeModel("gemini-1.5-pro")
 
 		response, err := generateContent(model)
+		log.Println("response:", response)
 		if err != nil {
 			// Check if the error contains "429" in its string representation
 			if strings.Contains(err.Error(), "429") {
@@ -332,9 +359,16 @@ func DraftResponse(bodyMessage string, user store.User, queries *store.Queries) 
 
 	// Retry the "concise" response generation with backoff
 	conciseContent := func() (string, error) {
+		model := client.GenerativeModel("gemini-1.5-pro")
 		resp, err := model.GenerateContent(ctx, genai.Text("Make this more concise: "+responseString+"."))
 		if err != nil {
-			return "", err
+			if strings.Contains(err.Error(), "429") {
+				model = client.GenerativeModel("gemini-1.0-pro")
+				resp, err = model.GenerateContent(ctx, genai.Text("Make this more concise: "+responseString+"."))
+			}
+			if err != nil {
+				return "", err
+			}
 		}
 		bs, _ := json.Marshal(resp.Candidates[len(resp.Candidates)-1].Content.Parts[len(resp.Candidates[len(resp.Candidates)-1].Content.Parts)-1])
 		responseString = string(bs)
@@ -363,9 +397,16 @@ func DraftResponse(bodyMessage string, user store.User, queries *store.Queries) 
 
 		// Generate response using the new prompt with timeslots
 		timeslotResponse, err := BackoffRetry(5, 2*time.Second, func() (string, error) {
+			model := client.GenerativeModel("gemini-1.5-pro")
 			resp, err := model.GenerateContent(ctx, genai.Text(promptWithTimeslots))
 			if err != nil {
-				return "", err
+				if strings.Contains(err.Error(), "429") {
+					model = client.GenerativeModel("gemini-1.0-pro")
+					resp, err = model.GenerateContent(ctx, genai.Text(promptWithTimeslots))
+				}
+				if err != nil {
+					return "", err
+				}
 			}
 			bs, _ := json.Marshal(resp.Candidates[len(resp.Candidates)-1].Content.Parts[len(resp.Candidates[len(resp.Candidates)-1].Content.Parts)-1])
 			responseString = string(bs)
