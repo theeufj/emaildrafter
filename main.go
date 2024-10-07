@@ -209,7 +209,8 @@ func callbackHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func runPeriodicDrafter() {
-	ticker := time.NewTicker(15 * time.Second)
+	logger.Info("Starting Drafter")
+	ticker := time.NewTicker(15 * time.Minute)
 	defer ticker.Stop()
 
 	for range ticker.C {
@@ -227,7 +228,7 @@ func runPeriodicDrafter() {
 					logger.Info("Successfully ran drafter for user", "userID", user.ID)
 				}
 			} else {
-				logger.Warn("User does not have a valid refresh token", "userID", user.ID)
+				logger.Info("User does not have a valid refresh token", "userID", user.ID)
 			}
 		}
 	}
