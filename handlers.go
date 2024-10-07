@@ -68,34 +68,50 @@ func ServeLoginPage(w http.ResponseWriter, r *http.Request) {
 
 func AdminHandler(q store.Queries) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Ensure CSRF middleware is properly initialized
+		csrfMiddleware := csrf.Protect([]byte("32-byte-long-auth-key"), csrf.Secure(true))
+		handler := csrfMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Get the user by their google id, which is found in the loggedIn cookie
+			cookie, err := r.Cookie("loggedIn")
+			if err != nil {
+				log.Println("Cookie error:", err)
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
 
-		// get the user by their google id, which is found in the loggedIn cookie
-		cookie, err := r.Cookie("loggedIn")
-		if err != nil {
-			log.Println(err)
-		}
-		user, err := q.GetUserByGoogleID(r.Context(), cookie.Value)
-		log.Println(user.Persona)
-		if err != nil {
-			log.Println(err)
-		}
-		csrfToken := csrf.Token(r)
-		logs, err := q.GetLogsByUserID(r.Context(), user.ID)
-		if err != nil {
-			err = portal.Execute(w, nil)
-		} else {
-			// create a map of user and logs
+			user, err := q.GetUserByGoogleID(r.Context(), cookie.Value)
+			if err != nil {
+				log.Println("User lookup error:", err)
+				http.Error(w, "User not found", http.StatusNotFound)
+				return
+			}
+
+			// Generate CSRF token
+			csrfToken := csrf.Token(r)
+			log.Println("Generated CSRF Token:", csrfToken)
+
+			logs, err := q.GetLogsByUserID(r.Context(), user.ID)
+			if err != nil {
+				log.Println("Error fetching logs:", err)
+				logs = []store.Log{} // Initialize empty slice to avoid nil
+			}
+
+			// Create a map of user and logs
 			data := map[string]interface{}{
 				"User":      user,
 				"Logs":      logs,
 				"csrfToken": csrfToken,
 			}
+
 			err = portal.Execute(w, data)
-		}
-		if err != nil {
-			http.Error(w, "Error rendering template", http.StatusInternalServerError)
-			log.Printf("Error executing template: %v", err)
-		}
+			if err != nil {
+				log.Printf("Error executing template: %v", err)
+				http.Error(w, "Error rendering template", http.StatusInternalServerError)
+				return
+			}
+		}))
+
+		handler.ServeHTTP(w, r)
 	}
 }
 
@@ -132,18 +148,18 @@ type SetPersonaResponse struct {
 func SetPersonas(q store.Queries) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Parse the form.
-		var reqBody struct {
-			UserID  string `json:"user_id"`
-			Persona string `json:"persona`
-		}
-
-		err := json.NewDecoder(r.Body).Decode(&reqBody)
+		err := r.ParseMultipartForm(32 << 20) // 32 MB is the maximum memory used to store parts
 		if err != nil {
-			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			http.Error(w, "Unable to parse form", http.StatusBadRequest)
 			return
 		}
+
+		// Retrieve the form values
+		userIDStr := r.FormValue("user_id")
+		persona := r.FormValue("persona")
+
 		// Convert user ID to UUID
-		userID, err := uuid.Parse(reqBody.UserID)
+		userID, err := uuid.Parse(userIDStr)
 		if err != nil {
 			http.Error(w, "Invalid user ID", http.StatusBadRequest)
 			return
@@ -152,7 +168,7 @@ func SetPersonas(q store.Queries) func(http.ResponseWriter, *http.Request) {
 		// Update the persona in the database
 		_, err = q.SetPersona(r.Context(), store.SetPersonaParams{
 			Persona: sql.NullString{
-				String: reqBody.Persona,
+				String: persona,
 				Valid:  true,
 			},
 			ID: userID,

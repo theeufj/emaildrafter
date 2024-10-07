@@ -10,8 +10,8 @@ import (
 
 var (
 	csrfMiddleware = csrf.Protect(
-		[]byte("your-strong-csrf-secret-key"), // Replace with a strong, randomly generated key
-		csrf.Secure(true),                     // Set to false in development if not using HTTPS
+		[]byte("32-byte-long-auth-key"), // Replace with a strong, randomly generated key
+		csrf.Secure(true),               // Set to false in development if not using HTTPS
 	)
 )
 var (
@@ -142,14 +142,6 @@ func SecurityHeaders(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
-}
-
-// CSRF Middleware using Gorilla CSRF
-func CSRF(next http.Handler) http.Handler {
-	return csrf.Protect(
-		[]byte("knZF1jYyUhn1yq6HZVmZ8iOmj5O/kKEY+A/YLhTnnobwwN1UgVwWHv5bKvSIOU+JMNDQUl2OcHACsz1pbJzAXBQavSEW22Mb1ZK9o5kbtXk="), // Replace with a strong, randomly generated key
-		csrf.Secure(true), // Set to false in development if not using HTTPS
-	)(next)
 }
 
 func CSRFProtect(next http.Handler) http.Handler {

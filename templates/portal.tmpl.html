@@ -36,9 +36,12 @@
             
             <section class="mb-8">
                 <h3 class="text-2xl font-semibold text-gray-700 mb-4">Account Management</h3>
-                <button id="unlinkGmail" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded">
-                    Unlink Gmail Account 
-                </button>
+                <form id="unlinkForm">
+                    <input type="hidden" name="gorilla.csrf.Token" value="{{.csrfToken}}">
+                    <button type="submit" id="unlinkGmail" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded">
+                        Unlink Gmail Account 
+                    </button>
+                </form>
             </section>
             
             <section>
@@ -47,9 +50,9 @@
                 <form id="personaForm" class="space-y-4">
                     <div>
                         <input type="hidden" name="user_id" value="{{.User.ID}}">
+                        <input type="hidden" name="gorilla.csrf.Token" value="{{.csrfToken}}">
                         <label for="persona" class="block text-sm font-medium text-gray-700 mb-2">Enter your persona:</label>
                         <textarea id="persona" name="persona" rows="4" class="w-full px-3 py-2 text-gray-700 border rounded-lg focus:outline-none" placeholder="Describe your persona here...">{{.User.Persona.String}}</textarea>
-                        <input type="hidden" name="_csrf" value="{{ .csrfToken }}"> </input>
                     </div>
                     <button type="submit" class="bg-primary hover:bg-opacity-90 text-white font-bold py-2 px-4 rounded">
                         Set Persona
@@ -69,16 +72,16 @@
     </footer>
 
     <script>
-        document.getElementById('unlinkGmail').addEventListener('click', function() {
-            var id = document.getElementsByName('user_id')[0].value;
+        document.getElementById('unlinkForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            var formData = new FormData(this);
+
             fetch('/unlink', {
                 method: 'POST',
+                body: formData,
                 headers: {
-                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': document.querySelector('input[name="gorilla.csrf.Token"]').value
                 },
-                body: JSON.stringify({
-                    user_id: id
-                }),
             })
             .then(response => response.json())
             .then(data => {
@@ -93,20 +96,19 @@
 
         document.getElementById('personaForm').addEventListener('submit', function(e) {
             e.preventDefault();
-            var persona = document.getElementById('persona').value;
-            var id = document.getElementsByName('user_id')[0].value;
+            var formData = new FormData(this);
 
             fetch('/setpersona', {
                 method: 'POST',
+                body: formData,
                 headers: {
-                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': document.querySelector('input[name="gorilla.csrf.Token"]').value
                 },
-                body: JSON.stringify({
-                    persona: persona,
-                    user_id: id
-                }),
+            }) .then(response => {
+                // Log the request to the console
+                console.log('Request:', response);
+                response => response.json()
             })
-            .then(response => response.json())
             .then(data => {
                 document.getElementById('message').textContent = 'Persona set successfully!';
                 document.getElementById('message').className = 'mt-6 text-sm font-semibold text-green-600';

@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
 	_ "github.com/lib/pq"
 )
@@ -53,7 +54,18 @@ func main() {
 	go runPeriodicDrafter()
 
 	server := createServer(r, mode, port)
+	CSRF := csrf.Protect(
+		[]byte("32-byte-long-auth-key"),
+		csrf.Secure(true),
+		csrf.ErrorHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "CSRF token invalid", http.StatusForbidden) // Custom error handling for invalid CSRF tokens
+		})),
+	)
+
+	// Wrap the entire router with CSRF protection
+	http.Handle("/", CSRF(r))
 	logger.Info("Your app is running", "host", server.Addr)
+
 	log.Fatal(server.ListenAndServeTLS("", ""))
 }
 
@@ -175,6 +187,11 @@ func setupDatabase(dbHost string) (*sql.DB, error) {
 func setupRoutes(r *mux.Router) {
 	r.Use(middleware.HSTS)
 	r.Use(middleware.SecurityHeaders)
+	r.Handle("/setpersona",
+		middleware.CSRFProtect( // Wrap with CSRF middleware
+			http.HandlerFunc(SetPersonas(*queries)), // Your handler
+		),
+	).Methods("POST")
 	fs := http.FileServer(http.Dir("static"))
 	r.PathPrefix("/static").Handler(http.StripPrefix("/static", fs))
 
@@ -190,11 +207,7 @@ func setupRoutes(r *mux.Router) {
 	r.HandleFunc("/login/callback", callbackHandler)
 
 	r.Handle("/admin", middleware.AuthMiddleware(http.HandlerFunc(AdminHandler(*queries)))).Methods("GET")
-	r.Handle("/setpersona",
-		middleware.CSRFProtect( // Wrap with CSRF middleware
-			http.HandlerFunc(SetPersonas(*queries)), // Your handler
-		),
-	).Methods("POST")
+
 	r.HandleFunc("/unlink", Unlink(*queries)).Methods("POST")
 	r.HandleFunc("/logout", LogoutHandler).Methods("GET")
 }
@@ -210,7 +223,7 @@ func callbackHandler(w http.ResponseWriter, r *http.Request) {
 
 func runPeriodicDrafter() {
 	logger.Info("Starting Drafter")
-	ticker := time.NewTicker(15 * time.Second)
+	ticker := time.NewTicker(15 * time.Minute)
 	defer ticker.Stop()
 
 	for range ticker.C {
