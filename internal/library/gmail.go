@@ -315,7 +315,7 @@ func DraftResponse(bodyMessage string, user store.User, queries *store.Queries) 
 			if err == nil {
 				return result, nil
 			}
-
+			log.Println(err)
 			// Check if the error is a 429 (Too Many Requests)
 			if strings.Contains(err.Error(), "429") {
 				log.Printf("Received 429 error. Switching to alternative model immediately.\n")
@@ -341,10 +341,10 @@ func DraftResponse(bodyMessage string, user store.User, queries *store.Queries) 
 		model := client.GenerativeModel("gemini-1.5-pro")
 
 		response, err := generateContent(model)
-		log.Println("response:", response)
 		if err != nil {
 			// Check if the error contains "429" in its string representation
 			if strings.Contains(err.Error(), "429") {
+				log.Println("USING GEMINI 1.0")
 				// If error code is 429, switch to a different model for retry
 				model = client.GenerativeModel("gemini-1.0-pro")
 				response, err = generateContent(model)
@@ -363,6 +363,7 @@ func DraftResponse(bodyMessage string, user store.User, queries *store.Queries) 
 		resp, err := model.GenerateContent(ctx, genai.Text("Make this more concise: "+responseString+"."))
 		if err != nil {
 			if strings.Contains(err.Error(), "429") {
+				log.Println("USING GEMINI 1.0")
 				model = client.GenerativeModel("gemini-1.0-pro")
 				resp, err = model.GenerateContent(ctx, genai.Text("Make this more concise: "+responseString+"."))
 			}
