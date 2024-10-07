@@ -125,12 +125,15 @@ func GmailCompose(token *oauth2.Token, user store.User, q *store.Queries) error 
 
 			// Check if a draft already exists for this message
 			hasDraft, err := checkForExistingDraft(gmailService, msg.ThreadId)
+			log.Println("Has Draft:", hasDraft)
+
 			if err != nil {
 				log.Printf("Error checking for existing draft for message %s: %v", msg.Id, err)
 				continue
 			}
 
 			if !hasDraft {
+				log.Println("in has draft")
 				if err := processMessage(gmailService, msg, user, q); err != nil {
 					log.Printf("Error processing message %s: %v", msg.Id, err)
 					continue
