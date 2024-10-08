@@ -236,7 +236,6 @@ func HandleRefreshToken(userID uuid.UUID, q *store.Queries) (*oauth2.Token, erro
 		return nil, fmt.Errorf("failed to decrypt refresh toke: %s", err)
 	}
 
-<<<<<<< HEAD
 	accessToken, err := q.GetAccessTokenByUserId(context.TODO(), userID)
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving refresh token: %w", err)
@@ -260,36 +259,10 @@ func HandleRefreshToken(userID uuid.UUID, q *store.Queries) (*oauth2.Token, erro
 
 	// need to encrypt all my tokens.
 	encryptedAccessToken, err := Encrypt(newToken.AccessToken, os.Getenv("KEY"))
-=======
-	log.Printf("Decrypted refresh token length: %d", len(decryptedRefreshToken))
-
-	if !isValidRefreshToken(decryptedRefreshToken) {
-		log.Printf("Warning: Potentially invalid refresh token for user %s", userID)
-	}
-
-	log.Printf("Decrypted refresh token (first 10 chars, if available): %s", safeSubstring(decryptedRefreshToken, 10))
-
-	if len(decryptedRefreshToken) == 0 {
-		return nil, fmt.Errorf("decrypted refresh token is empty for user %s", userID)
-	}
-
-	// Validate the decrypted token format (adjust this regex as needed)
-	if !isValidRefreshToken(decryptedRefreshToken) {
-		return nil, fmt.Errorf("invalid decrypted refresh token format for user %s", userID)
-	}
-
-	token := &oauth2.Token{
-		RefreshToken: decryptedRefreshToken,
-	}
-
-	tokenSource := config.TokenSource(context.Background(), token)
-	newToken, err := tokenSource.Token()
->>>>>>> f1d9ba0ac04131dc6dfa6e126686108fbfc63128
 	if err != nil {
 		log.Printf("Error refreshing token: %v", err)
 		return nil, fmt.Errorf("error refreshing token, re-authentication may be required: %w", err)
 	}
-<<<<<<< HEAD
 	encryptedRefreshToken, err := Encrypt(newToken.RefreshToken, os.Getenv("KEY"))
 	if err != nil {
 		return nil, fmt.Errorf("error encrypting refresh token: %w", err)
@@ -307,14 +280,6 @@ func HandleRefreshToken(userID uuid.UUID, q *store.Queries) (*oauth2.Token, erro
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to insert token: %w", err)
-=======
-
-	// If we successfully got a new token, update the stored refresh token if it's different
-	if newToken.RefreshToken != "" && newToken.RefreshToken != decryptedRefreshToken {
-		if err := storeRefreshToken(userID, newToken.RefreshToken, q); err != nil {
-			log.Printf("Error storing new refresh token: %v", err)
-		}
->>>>>>> f1d9ba0ac04131dc6dfa6e126686108fbfc63128
 	}
 
 	return newToken, nil
