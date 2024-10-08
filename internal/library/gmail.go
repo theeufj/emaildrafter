@@ -215,8 +215,8 @@ func promptStringCreator(user store.User, email string) (bool, string) {
 		personaDescription = "In your usual style, "
 	}
 
-	// Check for booking request keywords using gemini
-	bookingRequested := MeetingRequested(email)
+	// Check for booking request keywords
+	bookingRequested := strings.Contains(strings.ToLower(email), "book") || strings.Contains(strings.ToLower(email), "schedule")
 
 	// Create the prompt
 	prompt := fmt.Sprintf(
@@ -225,37 +225,6 @@ func promptStringCreator(user store.User, email string) (bool, string) {
 	)
 
 	return bookingRequested, prompt
-}
-
-// Gemini check if a meeting has been requested, if it has then gemini must return the value true.
-func MeetingRequested(message string) bool {
-	ctx := context.Background()
-
-	// Access the API key as an environment variable
-	client, err := genai.NewClient(ctx, option.WithAPIKey(os.Getenv("GEMINI_API_KEY")))
-	if err != nil {
-		fmt.Println("failed to create client:", err)
-	}
-	defer client.Close()
-	model := client.GenerativeModel("gemini-1.0-pro")
-	prompt := "This is the email sent by a user: " + message + "You must only ever return either True or False to the following questions: Did the email request a time to meet?"
-	resp, err := model.GenerateContent(ctx, genai.Text(prompt))
-	if err != nil {
-		fmt.Println("failed to generate content:", err)
-	}
-	result, err := json.Marshal(resp.Candidates[len(resp.Candidates)-1].Content.Parts[len(resp.Candidates[len(resp.Candidates)-1].Content.Parts)-1])
-	if err != nil {
-		fmt.Println("failed to marshall response:", err)
-	}
-	log.Println("The response was: ", string(result))
-	success := strings.Contains(string(result), "True")
-
-	if success {
-		log.Println("This worked as intended. ")
-	} else {
-		log.Println("This did not work")
-	}
-	return success
 }
 
 // promptStringCreatorWithTimeslots generates a prompt for responding to an email based on the user's persona,
@@ -366,6 +335,7 @@ func DraftResponse(bodyMessage string, user store.User, queries *store.Queries) 
 		if err != nil {
 			// Check if the error contains "429" in its string representation
 			if strings.Contains(err.Error(), "429") {
+				log.Println("USING GEMINI 1.0")
 				// If error code is 429, switch to a different model for retry
 				model = client.GenerativeModel("gemini-1.0-pro")
 				response, err = generateContent(model)
@@ -384,6 +354,7 @@ func DraftResponse(bodyMessage string, user store.User, queries *store.Queries) 
 		resp, err := model.GenerateContent(ctx, genai.Text("Make this more concise: "+responseString+"."))
 		if err != nil {
 			if strings.Contains(err.Error(), "429") {
+				log.Println("USING GEMINI 1.0")
 				model = client.GenerativeModel("gemini-1.0-pro")
 				resp, err = model.GenerateContent(ctx, genai.Text("Make this more concise: "+responseString+"."))
 			}
