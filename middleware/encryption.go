@@ -8,6 +8,8 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
+	"fmt"
+	"log"
 )
 
 // Encrypt encrypts the input text using AES-CBC encryption
@@ -47,28 +49,33 @@ func Encrypt(plaintext, key string) (string, error) {
 
 // Decrypt decrypts the input text using AES-CBC decryption
 func Decrypt(ciphertext, key string) (string, error) {
+	log.Printf("Attempting to decrypt ciphertext of length: %d", len(ciphertext))
+
 	// Decode the base64 encoded ciphertext
 	fullCiphertext, err := base64.StdEncoding.DecodeString(ciphertext)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("base64 decoding failed: %w", err)
 	}
+	log.Printf("Decoded ciphertext length: %d", len(fullCiphertext))
 
 	keyHash, err := hashKey(key)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("key hashing failed: %w", err)
 	}
+	log.Printf("Key hash length: %d", len(keyHash))
 
 	block, err := aes.NewCipher(keyHash)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("creating cipher failed: %w", err)
 	}
 
 	if len(fullCiphertext) < aes.BlockSize {
-		return "", errors.New("ciphertext too short")
+		return "", fmt.Errorf("ciphertext too short: %d < %d", len(fullCiphertext), aes.BlockSize)
 	}
 
 	iv := fullCiphertext[:aes.BlockSize]
 	ciphertextBytes := fullCiphertext[aes.BlockSize:]
+	log.Printf("IV length: %d, Ciphertext bytes length: %d", len(iv), len(ciphertextBytes))
 
 	// Create the CBC decrypter
 	mode := cipher.NewCBCDecrypter(block, iv)
@@ -80,8 +87,10 @@ func Decrypt(ciphertext, key string) (string, error) {
 	// Remove padding
 	plaintext, err = PKCS7UnPadding(plaintext)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("PKCS7 unpadding failed: %w", err)
 	}
+
+	log.Printf("Decrypted plaintext length: %d", len(plaintext))
 
 	return string(plaintext), nil
 }

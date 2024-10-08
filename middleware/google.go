@@ -200,36 +200,38 @@ func handleUser(ctx context.Context, queries *store.Queries, userInfo map[string
 }
 
 func HandleRefreshToken(userID uuid.UUID, q *store.Queries) (*oauth2.Token, error) {
-	if err := InitializeOAuth(); err != nil {
-		return nil, fmt.Errorf("error initializing OAuth: %w", err)
-	}
-
-	//logout the user id
-	log.Printf("User ID: %s", userID)
+	log.Printf("Handling refresh token for user ID: %s", userID)
 
 	refreshToken, err := q.GetRefreshTokenByUserId(context.TODO(), userID)
-	log.Printf("Refresh token: %s", refreshToken)
-
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving refresh token: %w", err)
 	}
+	log.Printf("Retrieved refresh token from database: Valid=%v, Length=%d", refreshToken.Valid, len(refreshToken.String))
+
 	if !refreshToken.Valid {
 		return nil, fmt.Errorf("refresh token is not valid for user %s", userID)
 	}
 
-	log.Println("key", os.Getenv("KEY"))
-	decryptedRefreshToken, err := Decrypt(refreshToken.String, os.Getenv("KEY"))
+	if len(refreshToken.String) == 0 {
+		return nil, fmt.Errorf("encrypted refresh token is empty for user %s", userID)
+	}
+
+	key := os.Getenv("KEY")
+	log.Printf("Decryption key length: %d", len(key))
+
+	if len(key) == 0 {
+		return nil, fmt.Errorf("decryption key is empty")
+	}
+
+	decryptedRefreshToken, err := Decrypt(refreshToken.String, key)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt refresh token: %w", err)
 	}
 
-	log.Printf("Decrypted refresh token: %s", decryptedRefreshToken)
+	log.Printf("Decrypted refresh token length: %d", len(decryptedRefreshToken))
 
-	// Safe logging of the refresh token
-	if len(decryptedRefreshToken) > 10 {
-		log.Printf("Decrypted refresh token (first 10 chars): %s", decryptedRefreshToken[:10])
-	} else {
-		log.Printf("Decrypted refresh token is too short to display safely")
+	if len(decryptedRefreshToken) == 0 {
+		return nil, fmt.Errorf("decrypted refresh token is empty for user %s", userID)
 	}
 
 	token := &oauth2.Token{
