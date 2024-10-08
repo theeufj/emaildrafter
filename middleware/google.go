@@ -230,6 +230,13 @@ func HandleRefreshToken(userID uuid.UUID, q *store.Queries) (*oauth2.Token, erro
 	}
 
 	log.Printf("Decrypted refresh token length: %d", len(decryptedRefreshToken))
+
+	if !isValidRefreshToken(decryptedRefreshToken) {
+		log.Printf("Invalid decrypted refresh token for user %s", userID)
+		// Implement logic to handle invalid token (e.g., trigger re-authentication)
+		return nil, fmt.Errorf("invalid refresh token, re-authentication required")
+	}
+
 	log.Printf("Decrypted refresh token (first 10 chars, if available): %s", safeSubstring(decryptedRefreshToken, 10))
 
 	if len(decryptedRefreshToken) == 0 {
@@ -322,9 +329,9 @@ func safeSubstring(s string, n int) string {
 }
 
 func isValidRefreshToken(token string) bool {
-	// Adjust this regex pattern to match your expected refresh token format
-	r, _ := regexp.MatchString(`^[A-Za-z0-9_\-]{20,}$`, token)
-	return r
+	// Google OAuth2 refresh tokens are typically long strings of letters, numbers, and hyphens
+	// This is a basic check and might need adjustment based on the exact format of your refresh tokens
+	return len(token) > 20 && regexp.MustCompile(`^[A-Za-z0-9_-]+$`).MatchString(token)
 }
 
 // recommend timeslot using gemini. We need to pass the both the booked timeslots and avalaible times to gemeini so it can correctly recommend a timeslot for a meeting

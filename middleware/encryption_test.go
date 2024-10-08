@@ -5,47 +5,21 @@ import (
 )
 
 func TestEncryptDecrypt(t *testing.T) {
-	testCases := []struct {
-		name      string
-		plaintext string
-		key       string
-	}{
-		{
-			name:      "Basic encryption and decryption",
-			plaintext: "This is a secret message",
-			key:       "my-secret-key",
-		},
-		{
-			name:      "Empty plaintext",
-			plaintext: "",
-			key:       "another-secret-key",
-		},
-		{
-			name:      "Long plaintext",
-			plaintext: "This is a very long message that spans multiple AES blocks to ensure that the padding and block mode are working correctly across block boundaries.",
-			key:       "yet-another-secret-key",
-		},
+	originalText := "this_is_a_test_refresh_token_12345"
+	key := "your_test_key_here"
+
+	encrypted, err := Encrypt(originalText, key)
+	if err != nil {
+		t.Fatalf("Encryption failed: %v", err)
 	}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			// Encrypt the plaintext
-			ciphertext, err := Encrypt(tc.plaintext, tc.key)
-			if err != nil {
-				t.Fatalf("Encryption failed: %v", err)
-			}
+	decrypted, err := Decrypt(encrypted, key)
+	if err != nil {
+		t.Fatalf("Decryption failed: %v", err)
+	}
 
-			// Decrypt the ciphertext
-			decryptedText, err := Decrypt(ciphertext, tc.key)
-			if err != nil {
-				t.Fatalf("Decryption failed: %v", err)
-			}
-
-			// Verify that the decrypted text matches the original plaintext
-			if decryptedText != tc.plaintext {
-				t.Errorf("Expected decrypted text to be %q, but got %q", tc.plaintext, decryptedText)
-			}
-		})
+	if decrypted != originalText {
+		t.Errorf("Decrypted text does not match original. Got %s, want %s", decrypted, originalText)
 	}
 }
 

@@ -14,6 +14,7 @@ import (
 
 // Encrypt encrypts the input text using AES-CBC encryption
 func Encrypt(plaintext, key string) (string, error) {
+	log.Printf("Encrypting plaintext of length: %d", len(plaintext))
 	keyHash, err := hashKey(key)
 	if err != nil {
 		return "", err
@@ -44,6 +45,7 @@ func Encrypt(plaintext, key string) (string, error) {
 	fullCiphertext := append(iv, ciphertext...)
 
 	// Encode the result as base64
+	log.Printf("Encrypted ciphertext length: %d", len(ciphertext))
 	return base64.StdEncoding.EncodeToString(fullCiphertext), nil
 }
 
