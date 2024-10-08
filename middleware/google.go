@@ -12,6 +12,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"regexp"
 	"time"
 
 	"github.com/google/uuid"
@@ -229,9 +230,15 @@ func HandleRefreshToken(userID uuid.UUID, q *store.Queries) (*oauth2.Token, erro
 	}
 
 	log.Printf("Decrypted refresh token length: %d", len(decryptedRefreshToken))
+	log.Printf("Decrypted refresh token (first 10 chars, if available): %s", safeSubstring(decryptedRefreshToken, 10))
 
 	if len(decryptedRefreshToken) == 0 {
 		return nil, fmt.Errorf("decrypted refresh token is empty for user %s", userID)
+	}
+
+	// Validate the decrypted token format (adjust this regex as needed)
+	if !isValidRefreshToken(decryptedRefreshToken) {
+		return nil, fmt.Errorf("invalid decrypted refresh token format for user %s", userID)
 	}
 
 	token := &oauth2.Token{
@@ -305,6 +312,19 @@ func logTokenSafely(token *oauth2.Token) {
 
 	log.Printf("New token received: AccessToken (first 10 chars): %s, RefreshToken (first 10 chars): %s, Expiry: %v",
 		accessTokenPreview, refreshTokenPreview, token.Expiry)
+}
+
+func safeSubstring(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n]
+}
+
+func isValidRefreshToken(token string) bool {
+	// Adjust this regex pattern to match your expected refresh token format
+	r, _ := regexp.MatchString(`^[A-Za-z0-9_\-]{20,}$`, token)
+	return r
 }
 
 // recommend timeslot using gemini. We need to pass the both the booked timeslots and avalaible times to gemeini so it can correctly recommend a timeslot for a meeting

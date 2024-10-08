@@ -83,16 +83,18 @@ func Decrypt(ciphertext, key string) (string, error) {
 	// Decrypt the ciphertext
 	plaintext := make([]byte, len(ciphertextBytes))
 	mode.CryptBlocks(plaintext, ciphertextBytes)
+	log.Printf("Decrypted data before unpadding (hex): %x", plaintext)
 
 	// Remove padding
-	plaintext, err = PKCS7UnPadding(plaintext)
+	unpadded, err := PKCS7UnPadding(plaintext)
 	if err != nil {
 		return "", fmt.Errorf("PKCS7 unpadding failed: %w", err)
 	}
 
-	log.Printf("Decrypted plaintext length: %d", len(plaintext))
+	log.Printf("Unpadded plaintext length: %d", len(unpadded))
+	log.Printf("Unpadded plaintext (hex): %x", unpadded)
 
-	return string(plaintext), nil
+	return string(unpadded), nil
 }
 
 // PKCS7Padding adds PKCS7 padding to the input slice
@@ -106,12 +108,15 @@ func PKCS7Padding(data []byte, blockSize int) []byte {
 func PKCS7UnPadding(data []byte) ([]byte, error) {
 	length := len(data)
 	if length == 0 {
-		return nil, errors.New("encrypted data is empty")
+		return nil, errors.New("empty data")
 	}
 	unpadding := int(data[length-1])
+	log.Printf("PKCS7 unpadding value: %d", unpadding)
+
 	if unpadding > length {
-		return nil, errors.New("invalid padding")
+		return nil, fmt.Errorf("invalid padding size: %d > %d", unpadding, length)
 	}
+
 	return data[:(length - unpadding)], nil
 }
 
