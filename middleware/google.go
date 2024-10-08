@@ -204,7 +204,12 @@ func HandleRefreshToken(userID uuid.UUID, q *store.Queries) (*oauth2.Token, erro
 		return nil, fmt.Errorf("error initializing OAuth: %w", err)
 	}
 
+	//logout the user id
+	log.Printf("User ID: %s", userID)
+
 	refreshToken, err := q.GetRefreshTokenByUserId(context.TODO(), userID)
+	log.Printf("Refresh token: %s", refreshToken)
+
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving refresh token: %w", err)
 	}
