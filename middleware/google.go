@@ -73,7 +73,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to generate state", http.StatusInternalServerError)
 		return
 	}
-	url := config.AuthCodeURL(oauthState, oauth2.AccessTypeOffline)
+	url := config.AuthCodeURL(oauthState, oauth2.AccessTypeOffline, oauth2.ApprovalForce)
 	http.Redirect(w, r, url, http.StatusFound)
 }
 
