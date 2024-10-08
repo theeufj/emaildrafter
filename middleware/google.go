@@ -217,6 +217,8 @@ func HandleRefreshToken(userID uuid.UUID, q *store.Queries) (*oauth2.Token, erro
 		return nil, fmt.Errorf("failed to decrypt refresh token: %w", err)
 	}
 
+	log.Printf("Decrypted refresh token: %s", decryptedRefreshToken)
+
 	// Safe logging of the refresh token
 	if len(decryptedRefreshToken) > 10 {
 		log.Printf("Decrypted refresh token (first 10 chars): %s", decryptedRefreshToken[:10])
