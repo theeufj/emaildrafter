@@ -210,11 +210,23 @@ func HandleRefreshToken(userID uuid.UUID, q *store.Queries) (*oauth2.Token, erro
 	}
 	decryptedRefreshToken, err := Decrypt(refreshToken.String, os.Getenv("KEY"))
 	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt refresh token: %w", err)
+		return nil, fmt.Errorf("failed to decrypt refresh toke: %s", err)
 	}
 
+	accessToken, err := q.GetAccessTokenByUserId(context.TODO(), userID)
+	if err != nil {
+		return nil, fmt.Errorf("error retrieving refresh token: %w", err)
+	}
+	decryptedaccessToken, err := Decrypt(accessToken.String, os.Getenv("KEY"))
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt refresh toke: %s", err)
+	}
+
+	log.Println("This is the decrypted refresh token", decryptedRefreshToken)
+	log.Println("This is the decrypted refresh token", decryptedaccessToken)
 	tokenSource := config.TokenSource(context.Background(), &oauth2.Token{
 		RefreshToken: decryptedRefreshToken,
+		AccessToken:  decryptedaccessToken,
 	})
 
 	newToken, err := refreshTokenWithRetry(tokenSource)
@@ -222,6 +234,7 @@ func HandleRefreshToken(userID uuid.UUID, q *store.Queries) (*oauth2.Token, erro
 		return nil, fmt.Errorf("error refreshing token: %w", err)
 	}
 
+	// need to encrypt all my tokens.
 	encryptedAccessToken, err := Encrypt(newToken.AccessToken, os.Getenv("KEY"))
 	if err != nil {
 		return nil, fmt.Errorf("error encrypting access token: %w", err)
@@ -230,7 +243,7 @@ func HandleRefreshToken(userID uuid.UUID, q *store.Queries) (*oauth2.Token, erro
 	if err != nil {
 		return nil, fmt.Errorf("error encrypting refresh token: %w", err)
 	}
-	encryptedTokenType, err := Encrypt(newToken.TokenType, os.Getenv("KEY"))
+	encrtypedTokenType, err := Encrypt(newToken.TokenType, os.Getenv("KEY"))
 	if err != nil {
 		return nil, fmt.Errorf("error encrypting token type: %w", err)
 	}
@@ -239,7 +252,7 @@ func HandleRefreshToken(userID uuid.UUID, q *store.Queries) (*oauth2.Token, erro
 		Accesstoken:  sql.NullString{String: encryptedAccessToken, Valid: true},
 		Refreshtoken: sql.NullString{String: encryptedRefreshToken, Valid: true},
 		Expiry:       sql.NullTime{Time: newToken.Expiry, Valid: true},
-		Tokentype:    sql.NullString{String: encryptedTokenType, Valid: true},
+		Tokentype:    sql.NullString{String: encrtypedTokenType, Valid: true},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to insert token: %w", err)
@@ -250,6 +263,7 @@ func HandleRefreshToken(userID uuid.UUID, q *store.Queries) (*oauth2.Token, erro
 
 func refreshTokenWithRetry(tokenSource oauth2.TokenSource) (*oauth2.Token, error) {
 	var token *oauth2.Token
+	log.Println("INSIDE REFRESH TOKEN:", tokenSource)
 	var err error
 	for i := 0; i < 3; i++ {
 		token, err = tokenSource.Token()
