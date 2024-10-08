@@ -178,10 +178,14 @@ func handleUser(ctx context.Context, queries *store.Queries, userInfo map[string
 	if err != nil {
 		return fmt.Errorf("error encrypting access token: %w", err)
 	}
+
+	log.Println("REFRESH TOKEN:", token.RefreshToken)
+	log.Println("KEY:", os.Getenv("KEY"))
 	encryptedRefreshToken, err := Encrypt(token.RefreshToken, os.Getenv("KEY"))
 	if err != nil {
 		return fmt.Errorf("error encrypting refresh token: %w", err)
 	}
+
 	encrtypedTokenType, err := Encrypt(token.TokenType, os.Getenv("KEY"))
 	if err != nil {
 		return fmt.Errorf("error encrypting token type: %w", err)
