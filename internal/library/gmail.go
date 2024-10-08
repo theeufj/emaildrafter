@@ -103,11 +103,10 @@ func GmailCompose(token *oauth2.Token, user store.User, q *store.Queries) error 
 	ctx := context.Background()
 
 	// Log token information (be careful not to log the entire token in production)
-	newToken, refreshErr := middleware.HandleRefreshToken(user.ID, q)
-	if refreshErr != nil {
-		return fmt.Errorf("failed to refresh token: %w", refreshErr)
-	}
-	client := config.Client(ctx, newToken)
+	log.Printf("Using token: AccessToken (first 10 chars): %s, Expiry: %v",
+		token.AccessToken[:10], token.Expiry)
+	// lets get the access token from the db
+	client := config.Client(ctx, token)
 	gmailService, err := gmail.New(client)
 	if err != nil {
 		return fmt.Errorf("failed to create Gmail service: %w", err)
