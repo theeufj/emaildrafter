@@ -99,7 +99,7 @@ func CallbackHandler(w http.ResponseWriter, r *http.Request, queries *store.Quer
 		http.Error(w, "Failed to exchange authorization code for token", http.StatusInternalServerError)
 		return
 	}
-
+	log.Println("TOKEN:", token)
 	userInfo, err := getUserInfo(r.Context(), token)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to get user info: %v", err), http.StatusInternalServerError)
