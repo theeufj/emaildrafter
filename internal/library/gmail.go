@@ -101,15 +101,42 @@ func ErrorHanlder(err error, line_number string) {
 
 func GmailCompose(token *oauth2.Token, user store.User, q *store.Queries) error {
 	ctx := context.Background()
+
+	// Log token information (be careful not to log the entire token in production)
+	log.Printf("Using token: AccessToken (first 10 chars): %s, Expiry: %v",
+		token.AccessToken[:10], token.Expiry)
+
 	client := config.Client(ctx, token)
 	gmailService, err := gmail.New(client)
 	if err != nil {
 		return fmt.Errorf("failed to create Gmail service: %w", err)
 	}
 
+	// Test the Gmail service with a simple API call
+	_, err = gmailService.Users.GetProfile("me").Do()
+	if err != nil {
+		return fmt.Errorf("failed to get user profile (token may be invalid): %w", err)
+	}
+
 	messages, err := GetMessages(gmailService, 15)
 	if err != nil {
-		return fmt.Errorf("failed to get messages: %w", err)
+		// If this error occurs, it's likely due to an invalid token
+		log.Printf("Error getting messages: %v", err)
+		// Attempt to refresh the token
+		newToken, refreshErr := middleware.HandleRefreshToken(user.ID, q)
+		if refreshErr != nil {
+			return fmt.Errorf("failed to refresh token: %w", refreshErr)
+		}
+		// Retry with the new token
+		client = config.Client(ctx, newToken)
+		gmailService, err = gmail.New(client)
+		if err != nil {
+			return fmt.Errorf("failed to create Gmail service with refreshed token: %w", err)
+		}
+		messages, err = GetMessages(gmailService, 15)
+		if err != nil {
+			return fmt.Errorf("failed to get messages even after token refresh: %w", err)
+		}
 	}
 
 	for _, msg := range messages {
