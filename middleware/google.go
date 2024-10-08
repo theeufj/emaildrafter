@@ -249,7 +249,6 @@ func HandleRefreshToken(userID uuid.UUID, q *store.Queries) (*oauth2.Token, erro
 	log.Println("This is the decrypted refresh token", decryptedaccessToken)
 	tokenSource := config.TokenSource(context.Background(), &oauth2.Token{
 		RefreshToken: decryptedRefreshToken,
-		AccessToken:  decryptedaccessToken,
 	})
 
 	newToken, err := refreshTokenWithRetry(tokenSource)
