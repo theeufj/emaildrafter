@@ -212,6 +212,7 @@ func HandleRefreshToken(userID uuid.UUID, q *store.Queries) (*oauth2.Token, erro
 		return nil, fmt.Errorf("refresh token is not valid for user %s", userID)
 	}
 
+	log.Println("key", os.Getenv("KEY"))
 	decryptedRefreshToken, err := Decrypt(refreshToken.String, os.Getenv("KEY"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt refresh token: %w", err)
