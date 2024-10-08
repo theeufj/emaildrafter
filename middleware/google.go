@@ -239,9 +239,7 @@ func HandleRefreshToken(userID uuid.UUID, q *store.Queries) (*oauth2.Token, erro
 	log.Printf("Decrypted refresh token length: %d", len(decryptedRefreshToken))
 
 	if !isValidRefreshToken(decryptedRefreshToken) {
-		log.Printf("Invalid decrypted refresh token for user %s", userID)
-		// Implement logic to handle invalid token (e.g., trigger re-authentication)
-		return nil, fmt.Errorf("invalid refresh token, re-authentication required")
+		log.Printf("Warning: Potentially invalid refresh token for user %s", userID)
 	}
 
 	log.Printf("Decrypted refresh token (first 10 chars, if available): %s", safeSubstring(decryptedRefreshToken, 10))
@@ -260,38 +258,17 @@ func HandleRefreshToken(userID uuid.UUID, q *store.Queries) (*oauth2.Token, erro
 	}
 
 	tokenSource := config.TokenSource(context.Background(), token)
-
-	log.Printf("Created token source: %+v", tokenSource)
-
-	newToken, err := refreshTokenWithRetry(tokenSource)
+	newToken, err := tokenSource.Token()
 	if err != nil {
-		return nil, fmt.Errorf("error refreshing token: %w", err)
+		log.Printf("Error refreshing token: %v", err)
+		return nil, fmt.Errorf("error refreshing token, re-authentication may be required: %w", err)
 	}
 
-	// Safe logging of the new token
-	logTokenSafely(newToken)
-
-	encryptedAccessToken, err := Encrypt(newToken.AccessToken, os.Getenv("KEY"))
-	if err != nil {
-		return nil, fmt.Errorf("error encrypting access token: %w", err)
-	}
-	encryptedRefreshToken, err := Encrypt(newToken.RefreshToken, os.Getenv("KEY"))
-	if err != nil {
-		return nil, fmt.Errorf("error encrypting refresh token: %w", err)
-	}
-	encryptedTokenType, err := Encrypt(newToken.TokenType, os.Getenv("KEY"))
-	if err != nil {
-		return nil, fmt.Errorf("error encrypting token type: %w", err)
-	}
-	_, err = q.InsertTokenByUserID(context.TODO(), store.InsertTokenByUserIDParams{
-		ID:           userID,
-		Accesstoken:  sql.NullString{String: encryptedAccessToken, Valid: true},
-		Refreshtoken: sql.NullString{String: encryptedRefreshToken, Valid: true},
-		Expiry:       sql.NullTime{Time: newToken.Expiry, Valid: true},
-		Tokentype:    sql.NullString{String: encryptedTokenType, Valid: true},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to insert token: %w", err)
+	// If we successfully got a new token, update the stored refresh token if it's different
+	if newToken.RefreshToken != "" && newToken.RefreshToken != decryptedRefreshToken {
+		if err := storeRefreshToken(userID, newToken.RefreshToken, q); err != nil {
+			log.Printf("Error storing new refresh token: %v", err)
+		}
 	}
 
 	return newToken, nil
@@ -336,9 +313,21 @@ func safeSubstring(s string, n int) string {
 }
 
 func isValidRefreshToken(token string) bool {
-	// Google OAuth2 refresh tokens are typically long strings of letters, numbers, and hyphens
-	// This is a basic check and might need adjustment based on the exact format of your refresh tokens
-	return len(token) > 20 && regexp.MustCompile(`^[A-Za-z0-9_-]+$`).MatchString(token)
+	// Google refresh tokens are typically long strings of letters, numbers, and possibly some special characters
+	return len(token) > 20 && regexp.MustCompile(`^[A-Za-z0-9_\-/]+$`).MatchString(token)
+}
+
+func storeRefreshToken(userID uuid.UUID, refreshToken string, q *store.Queries) error {
+	encryptedToken, err := Encrypt(refreshToken, os.Getenv("KEY"))
+	if err != nil {
+		return fmt.Errorf("failed to encrypt refresh token: %w", err)
+	}
+
+	q.InsertRefreshTokenByUserId(context.TODO(), store.InsertRefreshTokenByUserIdParams{
+		ID:           userID,
+		Refreshtoken: sql.NullString{String: encryptedToken, Valid: true},
+	})
+	return nil
 }
 
 // recommend timeslot using gemini. We need to pass the both the booked timeslots and avalaible times to gemeini so it can correctly recommend a timeslot for a meeting

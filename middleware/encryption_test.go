@@ -92,3 +92,22 @@ func TestPaddingFunctions(t *testing.T) {
 		})
 	}
 }
+
+func TestEncryptDecryptRefreshToken(t *testing.T) {
+	originalToken := "1//0gdt6jliPmNfSCgYIARAAGBASNwF-L9Ir17WBJW61PaPbi7b_Xt8KyZspBnd7K31r6nbYNbrycULD5d-trGA_YqV_3yfFFmSClaI"
+	key := "passphrasewhichneedstobe32bytes!"
+
+	encrypted, err := Encrypt(originalToken, key)
+	if err != nil {
+		t.Fatalf("Encryption failed: %v", err)
+	}
+
+	decrypted, err := Decrypt(encrypted, key)
+	if err != nil {
+		t.Fatalf("Decryption failed: %v", err)
+	}
+
+	if decrypted != originalToken {
+		t.Errorf("Decrypted token does not match original. Got %s, want %s", decrypted, originalToken)
+	}
+}
