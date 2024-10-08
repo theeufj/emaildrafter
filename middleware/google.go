@@ -208,19 +208,32 @@ func HandleRefreshToken(userID uuid.UUID, q *store.Queries) (*oauth2.Token, erro
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving refresh token: %w", err)
 	}
+	if !refreshToken.Valid {
+		return nil, fmt.Errorf("refresh token is not valid for user %s", userID)
+	}
+
 	decryptedRefreshToken, err := Decrypt(refreshToken.String, os.Getenv("KEY"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt refresh token: %w", err)
 	}
 
-	tokenSource := config.TokenSource(context.Background(), &oauth2.Token{
+	log.Printf("Decrypted refresh token (first 10 chars): %s", decryptedRefreshToken[:10])
+
+	token := &oauth2.Token{
 		RefreshToken: decryptedRefreshToken,
-	})
+	}
+
+	tokenSource := config.TokenSource(context.Background(), token)
+
+	log.Printf("Created token source: %+v", tokenSource)
 
 	newToken, err := refreshTokenWithRetry(tokenSource)
 	if err != nil {
 		return nil, fmt.Errorf("error refreshing token: %w", err)
 	}
+
+	log.Printf("New token received: AccessToken (first 10 chars): %s, RefreshToken (first 10 chars): %s, Expiry: %v",
+		newToken.AccessToken[:10], newToken.RefreshToken[:10], newToken.Expiry)
 
 	encryptedAccessToken, err := Encrypt(newToken.AccessToken, os.Getenv("KEY"))
 	if err != nil {
@@ -252,8 +265,10 @@ func refreshTokenWithRetry(tokenSource oauth2.TokenSource) (*oauth2.Token, error
 	var token *oauth2.Token
 	var err error
 	for i := 0; i < 3; i++ {
+		log.Printf("Attempting to refresh token (attempt %d)", i+1)
 		token, err = tokenSource.Token()
 		if err == nil {
+			log.Printf("Token refreshed successfully")
 			return token, nil
 		}
 		log.Printf("Error refreshing token (attempt %d): %v", i+1, err)
