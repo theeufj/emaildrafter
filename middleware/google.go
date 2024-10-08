@@ -74,7 +74,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to generate state", http.StatusInternalServerError)
 		return
 	}
-	url := config.AuthCodeURL(oauthState, oauth2.AccessTypeOffline)
+	url := config.AuthCodeURL(oauthState, oauth2.AccessTypeOffline, oauth2.ApprovalForce)
 	http.Redirect(w, r, url, http.StatusFound)
 }
 
@@ -99,7 +99,10 @@ func CallbackHandler(w http.ResponseWriter, r *http.Request, queries *store.Quer
 		http.Error(w, "Failed to exchange authorization code for token", http.StatusInternalServerError)
 		return
 	}
-	log.Println("TOKEN:", token)
+	log.Printf("Access Token: %s", token.AccessToken)
+	log.Printf("Refresh Token: %s", token.RefreshToken)
+	log.Printf("Token Expiry: %v", token.Expiry)
+
 	userInfo, err := getUserInfo(r.Context(), token)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to get user info: %v", err), http.StatusInternalServerError)
