@@ -217,7 +217,12 @@ func HandleRefreshToken(userID uuid.UUID, q *store.Queries) (*oauth2.Token, erro
 		return nil, fmt.Errorf("failed to decrypt refresh token: %w", err)
 	}
 
-	log.Printf("Decrypted refresh token (first 10 chars): %s", decryptedRefreshToken[:10])
+	// Safe logging of the refresh token
+	if len(decryptedRefreshToken) > 10 {
+		log.Printf("Decrypted refresh token (first 10 chars): %s", decryptedRefreshToken[:10])
+	} else {
+		log.Printf("Decrypted refresh token is too short to display safely")
+	}
 
 	token := &oauth2.Token{
 		RefreshToken: decryptedRefreshToken,
@@ -232,8 +237,8 @@ func HandleRefreshToken(userID uuid.UUID, q *store.Queries) (*oauth2.Token, erro
 		return nil, fmt.Errorf("error refreshing token: %w", err)
 	}
 
-	log.Printf("New token received: AccessToken (first 10 chars): %s, RefreshToken (first 10 chars): %s, Expiry: %v",
-		newToken.AccessToken[:10], newToken.RefreshToken[:10], newToken.Expiry)
+	// Safe logging of the new token
+	logTokenSafely(newToken)
 
 	encryptedAccessToken, err := Encrypt(newToken.AccessToken, os.Getenv("KEY"))
 	if err != nil {
@@ -275,6 +280,21 @@ func refreshTokenWithRetry(tokenSource oauth2.TokenSource) (*oauth2.Token, error
 		time.Sleep(time.Duration(1<<uint(i)) * time.Second)
 	}
 	return nil, fmt.Errorf("failed to refresh token after 3 attempts: %w", err)
+}
+
+func logTokenSafely(token *oauth2.Token) {
+	accessTokenPreview := "N/A"
+	refreshTokenPreview := "N/A"
+
+	if len(token.AccessToken) > 10 {
+		accessTokenPreview = token.AccessToken[:10]
+	}
+	if len(token.RefreshToken) > 10 {
+		refreshTokenPreview = token.RefreshToken[:10]
+	}
+
+	log.Printf("New token received: AccessToken (first 10 chars): %s, RefreshToken (first 10 chars): %s, Expiry: %v",
+		accessTokenPreview, refreshTokenPreview, token.Expiry)
 }
 
 // recommend timeslot using gemini. We need to pass the both the booked timeslots and avalaible times to gemeini so it can correctly recommend a timeslot for a meeting
