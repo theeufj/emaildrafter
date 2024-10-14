@@ -39,7 +39,7 @@ func InitializeOAuth() error {
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
 		RedirectURL:  redirectURI,
-		Scopes:       []string{"email", "profile", "https://www.googleapis.com/auth/calendar", "https://www.googleapis.com/auth/gmail.compose", "https://www.googleapis.com/auth/gmail.readonly"},
+		Scopes:       []string{"email", "profile", "https://www.googleapis.com/auth/calendar", "https://www.googleapis.com/auth/gmail.compose"},
 		Endpoint:     google.Endpoint,
 	}
 
