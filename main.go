@@ -123,7 +123,7 @@ func setupLogger(mode string) {
 	consoleHandler := slog.NewTextHandler(os.Stdout, opts)
 
 	// Create a file for logging
-	logFile, err := os.OpenFile("app.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	logFile, err := os.OpenFile("app.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0600)
 	if err != nil {
 		fmt.Printf("Error opening log file: %v\n", err)
 		os.Exit(1)
