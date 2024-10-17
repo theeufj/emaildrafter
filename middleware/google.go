@@ -306,10 +306,13 @@ func storeRefreshToken(userID uuid.UUID, refreshToken string, q *store.Queries) 
 		return fmt.Errorf("failed to encrypt refresh token: %w", err)
 	}
 
-	q.InsertRefreshTokenByUserId(context.TODO(), store.InsertRefreshTokenByUserIdParams{
+	err = q.InsertRefreshTokenByUserId(context.TODO(), store.InsertRefreshTokenByUserIdParams{
 		ID:           userID,
 		Refreshtoken: sql.NullString{String: encryptedToken, Valid: true},
 	})
+	if err != nil {
+		return fmt.Errorf("failed to insert refresh token: %w", err)
+	}
 	return nil
 }
 

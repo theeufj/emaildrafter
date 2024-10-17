@@ -210,8 +210,14 @@ func setupRoutes(r *mux.Router) {
 	r.HandleFunc("/Privacy_Policy_v2", catchAllAndRouteToStatic())
 
 	r.HandleFunc("/login", ServeLoginPage)
+	// google login
 	r.HandleFunc("/login/auth", middleware.LoginHandler)
 	r.HandleFunc("/login/callback", callbackHandler)
+	// microsoft login
+	r.HandleFunc("/login/microsoft", middleware.LoginHandlerMicrosoft)
+	r.HandleFunc("/login/microsoft/callback", middleware.CallbackHandlerMicrosoft)
+	// a path too https://aidrafter.xyz/.well-known/microsoft-identity-association.json
+	r.HandleFunc("/.well-known/microsoft-identity-association.json", middleware.MicrosoftIdentityAssociationHandler)
 
 	r.Handle("/admin", middleware.AuthMiddleware(http.HandlerFunc(AdminHandler(*queries)))).Methods("GET")
 

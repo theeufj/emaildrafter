@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"encoding/json"
 	"net/http"
 	"regexp"
 	"strings"
@@ -146,4 +147,18 @@ func SecurityHeaders(next http.Handler) http.Handler {
 
 func CSRFProtect(next http.Handler) http.Handler {
 	return csrfMiddleware(next)
+}
+
+func MicrosoftIdentityAssociationHandler(w http.ResponseWriter, r *http.Request) {
+	association := map[string]interface{}{
+		"associatedApplications": []map[string]string{
+			{
+				"applicationId": "0adae431-82c7-4539-8aad-ac6d6351a7f9",
+			},
+		},
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(association)
 }
