@@ -5,10 +5,13 @@ go 1.22.0
 toolchain go1.22.4
 
 require (
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.8.0
 	github.com/google/generative-ai-go v0.17.0
 	github.com/google/uuid v1.6.0
+	github.com/gorilla/csrf v1.7.2
 	github.com/gorilla/mux v1.8.1
 	github.com/joho/godotenv v1.5.1
+	github.com/microsoftgraph/msgraph-sdk-go v1.50.0
 	github.com/sqlc-dev/pqtype v0.3.0
 	golang.org/x/crypto v0.28.0
 	golang.org/x/exp v0.0.0-20241004190924-225e2abe05e6
@@ -22,7 +25,6 @@ require (
 	cloud.google.com/go/compute/metadata v0.5.0 // indirect
 	cloud.google.com/go/longrunning v0.5.11 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.14.0 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.8.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.10.0 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.2.2 // indirect
 	github.com/cjlapao/common-go v0.0.39 // indirect
@@ -34,7 +36,6 @@ require (
 	github.com/google/s2a-go v0.1.8 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.2 // indirect
 	github.com/googleapis/gax-go/v2 v2.13.0 // indirect
-	github.com/gorilla/csrf v1.7.2 // indirect
 	github.com/gorilla/securecookie v1.1.2 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/microsoft/kiota-abstractions-go v1.7.0 // indirect
@@ -44,7 +45,6 @@ require (
 	github.com/microsoft/kiota-serialization-json-go v1.0.8 // indirect
 	github.com/microsoft/kiota-serialization-multipart-go v1.0.0 // indirect
 	github.com/microsoft/kiota-serialization-text-go v1.0.0 // indirect
-	github.com/microsoftgraph/msgraph-sdk-go v1.50.0 // indirect
 	github.com/microsoftgraph/msgraph-sdk-go-core v1.2.1 // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
