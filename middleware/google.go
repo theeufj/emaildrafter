@@ -163,11 +163,11 @@ func handleUser(ctx context.Context, queries *store.Queries, userInfo map[string
 		return fmt.Errorf("missing required user info")
 	}
 
-	user, err := queries.GetUserByGoogleID(ctx, googleID)
+	user, err := queries.GetUserByGoogleID(ctx, sql.NullString{String: googleID, Valid: true})
 	if err != nil {
 		// User doesn't exist, create a new one
 		user, err = queries.CreateUser(ctx, store.CreateUserParams{
-			GoogleID:    googleID,
+			GoogleID:    sql.NullString{String: googleID, Valid: true},
 			Name:        name,
 			Email:       email,
 			DisplayName: displayName,

@@ -37,7 +37,7 @@ type User struct {
 	Email        string
 	Name         string
 	DisplayName  string
-	GoogleID     string
+	GoogleID     sql.NullString
 	CreatedAt    sql.NullTime
 	UpdatedAt    sql.NullTime
 	ApiKey       sql.NullString
@@ -47,4 +47,5 @@ type User struct {
 	Expiry       sql.NullTime
 	Tokentype    sql.NullString
 	Persona      sql.NullString
+	MicrosoftID  sql.NullString
 }

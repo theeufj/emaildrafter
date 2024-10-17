@@ -4,7 +4,7 @@ CREATE TABLE users (
   email VARCHAR(255) UNIQUE NOT NULL,
   name VARCHAR(255) NOT NULL,
   display_name VARCHAR(255) NOT NULL,
-  google_id VARCHAR(255) UNIQUE NOT NULL, -- Google's user ID
+  google_id VARCHAR(255) UNIQUE, -- Google's user ID
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -40,3 +40,5 @@ CREATE TABLE processed_emails (
     message_id TEXT PRIMARY KEY,
     processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+Alter table Users add column microsoft_id TEXT;

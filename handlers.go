@@ -84,11 +84,13 @@ func AdminHandler(q store.Queries) func(http.ResponseWriter, *http.Request) {
 				return
 			}
 
-			user, err := q.GetUserByGoogleID(r.Context(), cookie.Value)
+			user, err := q.GetUserByGoogleID(r.Context(), sql.NullString{String: cookie.Value, Valid: true})
 			if err != nil {
-				log.Println("User lookup error:", err)
-				http.Error(w, "User not found", http.StatusNotFound)
-				return
+				user, err = q.GetUserByMicrosoftID(r.Context(), sql.NullString{String: cookie.Value, Valid: true})
+				if err != nil {
+					http.Error(w, "User not found", http.StatusNotFound)
+					return
+				}
 			}
 
 			// Generate CSRF token

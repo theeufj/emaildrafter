@@ -3,6 +3,12 @@ INSERT INTO users (display_name, name, google_id, email)
 VALUES ($1, $2, $3, $4)
 RETURNING *;
 
+-- name: CreateUserWithMicrosoftID :one
+INSERT INTO users (display_name, name, email, microsoft_id)
+VALUES ($1, $2, $3, $4)
+RETURNING *;
+
+
 -- name: GetUserByName :one
 SELECT * FROM users
 WHERE name = $1 LIMIT 1;
@@ -84,3 +90,12 @@ SELECT persona FROM users WHERE id = $1;
 -- name: RemoveTokens :one
 UPDATE users SET accessToken = NULL, refreshToken = NULL, expiry = NULL, tokenType = NULL WHERE id = $1
 RETURNING *;
+
+-- name: GetTokenByUser :one
+SELECT accesstoken, refreshtoken, expiry, tokentype FROM users WHERE id = $1;
+
+-- name: GetMicrosoftIDByUser :one
+SELECT microsoft_id FROM users WHERE id = $1;
+
+-- name: GetUserByMicrosoftID :one
+SELECT * FROM users WHERE microsoft_id = $1;

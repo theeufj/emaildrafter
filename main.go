@@ -48,10 +48,15 @@ func main() {
 	defer db.Close()
 
 	queries = store.New(db)
+	microsoftClient, err := middleware.NewMicrosoftClient(*queries)
+	if err != nil {
+		logger.Error("Failed to setup microsoft client", "error", err)
+		os.Exit(1)
+	}
 
-	setupRoutes(r)
+	setupRoutes(r, microsoftClient)
 
-	go runPeriodicDrafter()
+	//go runPeriodicDrafter()
 
 	server := createServer(r, mode, port)
 	CSRF := csrf.Protect(
@@ -184,7 +189,7 @@ func setupDatabase(dbHost string) (*sql.DB, error) {
 	return db, nil
 }
 
-func setupRoutes(r *mux.Router) {
+func setupRoutes(r *mux.Router, microsoftClient *middleware.MicrosoftClient) {
 	r.Use(middleware.HSTS)
 	r.Use(middleware.SecurityHeaders)
 	r.Handle("/setpersona",
@@ -214,8 +219,8 @@ func setupRoutes(r *mux.Router) {
 	r.HandleFunc("/login/auth", middleware.LoginHandler)
 	r.HandleFunc("/login/callback", callbackHandler)
 	// microsoft login
-	r.HandleFunc("/login/microsoft", middleware.LoginHandlerMicrosoft)
-	r.HandleFunc("/login/microsoft/callback", middleware.CallbackHandlerMicrosoft)
+	r.HandleFunc("/login/microsoft", microsoftClient.LoginHandlerMicrosoft)
+	r.HandleFunc("/login/microsoft/callback", microsoftClient.CallbackHandlerMicrosoft)
 	// a path too https://aidrafter.xyz/.well-known/microsoft-identity-association.json
 	r.HandleFunc("/.well-known/microsoft-identity-association.json", middleware.MicrosoftIdentityAssociationHandler)
 
