@@ -1,9 +1,12 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"emaildrafter/database/store"
 	"emaildrafter/internal/env"
+	"emaildrafter/internal/library"
+	"emaildrafter/middleware"
 	"encoding/json"
 	"html/template"
 	"log"
@@ -12,6 +15,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/csrf"
+	"golang.org/x/oauth2"
+	"google.golang.org/api/gmail/v1"
 )
 
 var (
@@ -193,6 +198,62 @@ func SetPersonas(q store.Queries) func(http.ResponseWriter, *http.Request) {
 			return                                                                 // Stop further processing
 		}
 	}
+}
+
+func GeneratePersona(q store.Queries) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Parse the form.
+		err := r.ParseMultipartForm(32 << 20) // 32 MB is the maximum memory used to store parts
+		if err != nil {
+			http.Error(w, "Unable to parse form", http.StatusBadRequest)
+			return
+		}
+
+		// Retrieve the form values
+		userIDStr := r.FormValue("user_id")
+
+		// Convert user ID to UUID
+		userID, err := uuid.Parse(userIDStr)
+		if err != nil {
+			http.Error(w, "Invalid user ID", http.StatusBadRequest)
+			return
+		}
+		user, err := q.GetUserByID(r.Context(), userID)
+		if err != nil {
+			http.Error(w, "User not found", http.StatusNotFound)
+			return
+		}
+		ctx := context.Background()
+		token, err := middleware.HandleRefreshToken(userID, &q)
+		if err != nil {
+			http.Error(w, "Failed to decrypt token", http.StatusInternalServerError)
+			return
+		}
+		config := &oauth2.Config{}
+		client := config.Client(ctx, token)
+		gmailService, err := gmail.New(client)
+		if err != nil {
+			log.Printf("failed to create Gmail service: %s", err.Error())
+		}
+		// Generate persona
+
+		persona, err := library.SentEmailReader(gmailService, user, &q, 50)
+		if err != nil {
+			http.Error(w, "Failed to generate persona", http.StatusInternalServerError)
+		}
+		log.Println(persona)
+		response := SetPersonaResponse{
+			Success: true,
+			Message: persona,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+	}
+
 }
 
 func Unlink(q store.Queries) func(http.ResponseWriter, *http.Request) {

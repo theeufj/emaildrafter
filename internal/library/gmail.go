@@ -4,6 +4,7 @@ package library
 
 import (
 	"context"
+	"database/sql"
 	"emaildrafter/database/store"
 	"emaildrafter/internal/env"
 	"emaildrafter/middleware"
@@ -868,4 +869,130 @@ func findAvailableTimeSlots(events []struct {
 	}
 
 	return availableSlots
+}
+
+// SentEmailReader reads sent emails, extracts the body message, and uses Gemini to craft a persona
+// based on the user's historical communication style. It then uses this persona to draft a response.
+func SentEmailReader(srv *gmail.Service, user store.User, queries *store.Queries, limit int) (string, error) {
+	// Query for the last 50 sent emails
+	sentEmails, err := Query(srv, "in:sent")
+	if err != nil {
+		return "", fmt.Errorf("failed to query sent emails: %w", err)
+	}
+
+	// Limit the number of emails processed
+	if len(sentEmails) > limit {
+		sentEmails = sentEmails[:limit]
+	}
+
+	log.Println(sentEmails)
+	// Extract body messages from sent emails
+	var bodyMessages []string
+	for _, email := range sentEmails {
+		body, err := GetBody(email, "text/plain")
+		if err != nil {
+			log.Printf("Failed to get body for email %s: %v", email.Id, err)
+			continue
+		}
+		bodyMessages = append(bodyMessages, body)
+	}
+
+	// Use Gemini to analyze communication style and craft persona
+	persona, err := analyzeCommStyle(bodyMessages, user.Email)
+	if err != nil {
+		return "", fmt.Errorf("failed to analyze communication style: %w", err)
+	}
+
+	// Update user's persona in the database
+	_, err = queries.SetPersona(context.TODO(), store.SetPersonaParams{
+		ID:      user.ID,
+		Persona: sql.NullString{String: persona, Valid: true},
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to update user persona: %w", err)
+	}
+
+	log.Printf("Updated persona for user %s: %s", user.Name, persona)
+	return persona, nil
+}
+
+func analyzeCommStyle(bodyMessages []string, email string) (string, error) {
+	ctx := context.Background()
+	client, err := genai.NewClient(ctx, option.WithAPIKey(os.Getenv("GEMINI_API_KEY")))
+	if err != nil {
+		return "", fmt.Errorf("failed to create Gemini client: %w", err)
+	}
+	defer client.Close()
+
+	model := client.GenerativeModel("gemini-1.0-pro")
+	prompt := `Analyze the following email messages sent by the user and create a comprehensive, detailed persona based on their communication style. The persona should be written in first-person and follow this structure:
+
+<h1>Professional Persona</h1>
+
+<h2>Job Title and Role</h2>
+<p>[Describe the position and responsibilities based on the email content]</p>
+
+<h2>Industry or Sector</h2>
+<p>[Mention the industry or sector, including any specific terminology or practices observed]</p>
+
+<h2>Communication Style</h2>
+<p>[Describe the overall communication style, including formality, tone, and typical patterns]</p>
+
+<h2>Audience</h2>
+<p>[Identify the typical recipients of the emails and how communication style might vary by audience]</p>
+
+<h2>Key Values</h2>
+<p>[Highlight any values or priorities that are evident in the communication]</p>
+
+<h2>Cultural or Regional Considerations</h2>
+<p>[Note any indications of cross-cultural communication or regional specifics]</p>
+
+<h2>Goals</h2>
+<p>[Identify the apparent communication goals based on the email content]</p>
+
+<h2>Example Statement</h2>
+<p>Based on the analysis, create a first-person statement that encapsulates the persona, similar to this structure:</p>
+<blockquote>
+"I am a [Job Title] in the [Industry] industry, responsible for [key responsibilities]. I work primarily in [Region/Market] but also [any global/regional aspects]. My communication style is [key characteristics] when [context]. [Key value] and [another key value] are my primary values. I often communicate with [main audience types]. My goal is to [primary communication objectives]."
+</blockquote>
+
+<h2>Email Analysis</h2>
+<p>Analyze the following email messages to create the above persona:</p>
+<pre>%s</pre>
+
+	<ul>
+	<li>Start with '<h1>Persona:</h1>'</li>
+	<li>Use '<h2>' tags for main sections (e.g., Communication Style, Decision Making, Leadership)</li>
+	<li>Use '<h3>' tags for subsections if needed</li>
+	<li>Use '<p>' tags for paragraphs</li>
+	<li>Use '<ul>' and '<li>' tags for lists</li>
+	<li>Use '<strong>' tags for emphasis</li>
+	<li>Include specific examples from the analyzed emails to support your observations, wrapping them in '<blockquote>' tags</li>
+	</ul>
+	
+	<p>The persona should thoroughly reflect the user's professional identity and communication style as evidenced in these emails. Conclude with a brief summary of the user's key communication strengths and potential areas for improvement, using '<h2>Summary:</h2>' to introduce this section.</p>
+	
+	<p>Ensure all content is properly wrapped in appropriate HTML tags.</p>`
+
+	resp, err := model.GenerateContent(ctx, genai.Text(fmt.Sprintf(prompt, strings.Join(bodyMessages, "\n\n"))))
+	if err != nil {
+		return "", fmt.Errorf("failed to generate content: %w", err)
+	}
+
+	if len(resp.Candidates) == 0 || len(resp.Candidates[0].Content.Parts) == 0 {
+		return "", fmt.Errorf("no content generated")
+	}
+
+	responseString, err := json.Marshal(resp.Candidates[0].Content.Parts[0])
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal response: %w", err)
+	}
+
+	// Remove surrounding quotes and unescape newlines
+	unquoted, err := strconv.Unquote(string(responseString))
+	if err != nil {
+		return "", fmt.Errorf("failed to unquote response: %w", err)
+	}
+
+	return unquoted, nil
 }

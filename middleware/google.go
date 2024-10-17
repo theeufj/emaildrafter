@@ -208,13 +208,16 @@ func handleUser(ctx context.Context, queries *store.Queries, userInfo map[string
 }
 
 func HandleRefreshToken(userID uuid.UUID, q *store.Queries) (*oauth2.Token, error) {
-	log.Printf("Handling refresh token for user ID: %s", userID)
+
+	// Add this check at the beginning of the function
+	if err := InitializeOAuth(); err != nil {
+		return nil, fmt.Errorf("failed to initialize OAuth: %w", err)
+	}
 
 	refreshToken, err := q.GetRefreshTokenByUserId(context.TODO(), userID)
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving refresh token: %w", err)
 	}
-	log.Printf("Retrieved refresh token from database: Valid=%v, Length=%d", refreshToken.Valid, len(refreshToken.String))
 
 	if !refreshToken.Valid {
 		return nil, fmt.Errorf("refresh token is not valid for user %s", userID)
@@ -236,69 +239,38 @@ func HandleRefreshToken(userID uuid.UUID, q *store.Queries) (*oauth2.Token, erro
 		return nil, fmt.Errorf("failed to decrypt refresh toke: %s", err)
 	}
 
-	accessToken, err := q.GetAccessTokenByUserId(context.TODO(), userID)
-	if err != nil {
-		return nil, fmt.Errorf("error retrieving refresh token: %w", err)
-	}
-	decryptedaccessToken, err := Decrypt(accessToken.String, os.Getenv("KEY"))
-	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt refresh toke: %s", err)
-	}
-
-	log.Println("This is the decrypted refresh token", decryptedRefreshToken)
-	log.Println("This is the decrypted refresh token", decryptedaccessToken)
-	tokenSource := config.TokenSource(context.Background(), &oauth2.Token{
+	token := &oauth2.Token{
 		RefreshToken: decryptedRefreshToken,
-	})
-
-	newToken, err := refreshTokenWithRetry(tokenSource)
-	if err != nil {
-		return nil, fmt.Errorf("error refreshing token: %w", err)
+		Expiry:       time.Now().Add(-time.Hour), // Force token refresh
 	}
 
-	// need to encrypt all my tokens.
-	encryptedAccessToken, err := Encrypt(newToken.AccessToken, os.Getenv("KEY"))
-	if err != nil {
-		log.Printf("Error refreshing token: %v", err)
-		return nil, fmt.Errorf("error refreshing token, re-authentication may be required: %w", err)
+	// Replace the existing tokenSource creation with this
+	if config == nil {
+		return nil, fmt.Errorf("OAuth2 config is not initialized")
 	}
-	encryptedRefreshToken, err := Encrypt(newToken.RefreshToken, os.Getenv("KEY"))
-	if err != nil {
-		return nil, fmt.Errorf("error encrypting refresh token: %w", err)
-	}
-	encrtypedTokenType, err := Encrypt(newToken.TokenType, os.Getenv("KEY"))
-	if err != nil {
-		return nil, fmt.Errorf("error encrypting token type: %w", err)
-	}
-	_, err = q.InsertTokenByUserID(context.TODO(), store.InsertTokenByUserIDParams{
-		ID:           userID,
-		Accesstoken:  sql.NullString{String: encryptedAccessToken, Valid: true},
-		Refreshtoken: sql.NullString{String: encryptedRefreshToken, Valid: true},
-		Expiry:       sql.NullTime{Time: newToken.Expiry, Valid: true},
-		Tokentype:    sql.NullString{String: encrtypedTokenType, Valid: true},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to insert token: %w", err)
-	}
+	tokenSource := config.TokenSource(context.Background(), token)
 
-	return newToken, nil
+	// Add more debug logging
+
+	return refreshTokenWithRetry(tokenSource)
 }
 
 func refreshTokenWithRetry(tokenSource oauth2.TokenSource) (*oauth2.Token, error) {
 	var token *oauth2.Token
 	log.Println("INSIDE REFRESH TOKEN:", tokenSource)
 	var err error
-	for i := 0; i < 3; i++ {
+	maxRetries := 3
+	for i := 0; i < maxRetries; i++ {
 		log.Printf("Attempting to refresh token (attempt %d)", i+1)
 		token, err = tokenSource.Token()
 		if err == nil {
 			log.Printf("Token refreshed successfully")
 			return token, nil
 		}
-		log.Printf("Error refreshing token (attempt %d): %v", i+1, err)
+		log.Printf("Token refresh attempt %d failed: %v", i+1, err)
 		time.Sleep(time.Duration(1<<uint(i)) * time.Second)
 	}
-	return nil, fmt.Errorf("failed to refresh token after 3 attempts: %w", err)
+	return nil, fmt.Errorf("failed to refresh token after %d attempts: %w", maxRetries, err)
 }
 
 func logTokenSafely(token *oauth2.Token) {

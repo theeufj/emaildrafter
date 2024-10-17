@@ -192,6 +192,13 @@ func setupRoutes(r *mux.Router) {
 			http.HandlerFunc(SetPersonas(*queries)), // Your handler
 		),
 	).Methods("POST")
+
+	r.Handle("/generatepersona",
+		middleware.CSRFProtect( // Wrap with CSRF middleware
+			http.HandlerFunc(GeneratePersona(*queries)), // Your handler
+		),
+	).Methods("POST")
+
 	fs := http.FileServer(http.Dir("static"))
 	r.PathPrefix("/static").Handler(http.StripPrefix("/static", fs))
 
