@@ -150,6 +150,22 @@
                 license_key: 'gpl'
             });
 
+            const fetchWithTimeout = (url, options, timeout = 120000) => {
+                return Promise.race([
+                    fetch(url, options),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out')), timeout))
+                ]);
+            };
+
+            const retryFetch = (url, options, retries = 3, backoff = 300) => {
+                return fetchWithTimeout(url, options)
+                    .catch(error => {
+                        if (retries === 0) throw error;
+                        return new Promise(resolve => setTimeout(resolve, backoff))
+                            .then(() => retryFetch(url, options, retries - 1, backoff * 2));
+                    });
+            };
+
             document.getElementById('generatePersonaForm').addEventListener('submit', function (e) {
                 e.preventDefault();
                 var formData = new FormData(this);
@@ -158,50 +174,49 @@
                 var spinner = button.querySelector('svg');
                 var warningMessage = document.getElementById('warningMessage');
 
-                // Disable button and show spinner
                 button.disabled = true;
                 buttonText.textContent = 'Generating...';
                 spinner.classList.remove('hidden');
                 warningMessage.classList.add('hidden');
 
-                fetch('/generatepersona', {
+                retryFetch('/generatepersona', {
                     method: 'POST',
                     body: formData,
                     headers: {
                         'X-CSRF-Token': document.querySelector('input[name="gorilla.csrf.Token"]').value
                     },
                 })
-                    .then(response => response.json())
-                    .then(data => {
-                        console.log('Response data:', data);
-                        if (data.success) {
-                            console.log('Success message:', data.message);
-                            document.getElementById('message').textContent = 'Persona generated successfully!';
-                            document.getElementById('message').className = 'mt-6 text-sm font-semibold text-green-600';
-                            
-                            var personaEditor = tinymce.get('persona');
-                            if (personaEditor) {
-                                personaEditor.setContent(data.message);
-                                console.log('Persona editor content set');
-                                warningMessage.classList.remove('hidden');
-                            } else {
-                                console.error('Persona editor not found');
-                            }
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Response data:', data);
+                    if (data.success) {
+                        console.log('Success message:', data.message);
+                        document.getElementById('message').textContent = 'Persona generated successfully!';
+                        document.getElementById('message').className = 'mt-6 text-sm font-semibold text-green-600';
+                        
+                        var personaEditor = tinymce.get('persona');
+                        if (personaEditor) {
+                            personaEditor.setContent(data.message);
+                            console.log('Persona editor content set');
+                            warningMessage.classList.remove('hidden');
                         } else {
-                            throw new Error(data.message || 'Unknown error occurred');
+                            console.error('Persona editor not found');
                         }
-                    })
-                    .catch((error) => {
-                        console.error('Error:', error);
-                        document.getElementById('message').textContent = 'Error generating persona: ' + error;
-                        document.getElementById('message').className = 'mt-6 text-sm font-semibold text-red-600';
-                    })
-                    .finally(() => {
-                        // Re-enable button and hide spinner
-                        button.disabled = false;
-                        buttonText.textContent = 'Generate Persona';
-                        spinner.classList.add('hidden');
-                    });
+                    } else {
+                        throw new Error(data.message || 'Unknown error occurred');
+                    }
+                })
+                .catch((error) => {
+                    console.error('Error:', error);
+                    document.getElementById('message').textContent = 'Error generating persona: ' + error;
+                    document.getElementById('message').className = 'mt-6 text-sm font-semibold text-red-600';
+                })
+                .finally(() => {
+                    // Re-enable button and hide spinner
+                    button.disabled = false;
+                    buttonText.textContent = 'Generate Persona';
+                    spinner.classList.add('hidden');
+                });
             });
 
             document.getElementById('personaForm').addEventListener('submit', function(e) {
@@ -209,7 +224,36 @@
                 var formData = new FormData(this);
                 formData.set('persona', tinymce.get('persona').getContent());
                 
-                // ... rest of your form submission code ...
+                var submitButton = this.querySelector('button[type="submit"]');
+                var originalButtonText = submitButton.textContent;
+                submitButton.disabled = true;
+                submitButton.textContent = 'Saving...';
+
+                retryFetch('/setpersona', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-CSRF-Token': document.querySelector('input[name="gorilla.csrf.Token"]').value
+                    },
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        document.getElementById('message').textContent = 'Persona updated successfully!';
+                        document.getElementById('message').className = 'mt-6 text-sm font-semibold text-green-600';
+                    } else {
+                        throw new Error(data.message || 'Failed to update persona');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('message').textContent = 'Error updating persona: ' + error;
+                    document.getElementById('message').className = 'mt-6 text-sm font-semibold text-red-600';
+                })
+                .finally(() => {
+                    submitButton.disabled = false;
+                    submitButton.textContent = originalButtonText;
+                });
             });
         });
     </script>
