@@ -74,4 +74,5 @@ require (
 	golang.org/x/time v0.7.0 // indirect
 	google.golang.org/grpc v1.67.1 // indirect
 	google.golang.org/protobuf v1.35.1 // indirect
+	k8s.io/utils v0.0.0-20240921022957-49e7df575cb6
 )

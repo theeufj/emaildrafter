@@ -1,13 +1,16 @@
 package middleware
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"database/sql"
 	"emaildrafter/database/store"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -18,8 +21,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/sessions"
 	msgraphsdk "github.com/microsoftgraph/msgraph-sdk-go"
-	graphmodels "github.com/microsoftgraph/msgraph-sdk-go/models"
+	"github.com/microsoftgraph/msgraph-sdk-go/models/odataerrors"
 	graphusers "github.com/microsoftgraph/msgraph-sdk-go/users"
+	"k8s.io/utils/pointer"
 )
 
 // ClientConfig holds the configuration for MicrosoftClient
@@ -74,7 +78,10 @@ func NewMicrosoftClient(db store.Queries) (*MicrosoftClient, error) {
 	}
 
 	key := make([]byte, 32)
-	rand.Read(key)
+	_, err = rand.Read(key)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create key: %w", err)
+	}
 	config.Store = sessions.NewCookieStore(key) // Add this line
 
 	return &MicrosoftClient{
@@ -208,7 +215,31 @@ type Attachment struct {
 	Data        []byte
 }
 
-// SendDraftResponse sends a reply to an existing email
+// Custom structs
+type EmailAddress struct {
+	Address string `json:"address"`
+}
+
+type Recipient struct {
+	EmailAddress EmailAddress `json:"emailAddress"`
+}
+
+type EmailBody struct {
+	Content     string `json:"content"`
+	ContentType string `json:"contentType"`
+}
+
+type EmailMessage struct {
+	Body         EmailBody   `json:"body"`
+	ToRecipients []Recipient `json:"toRecipients,omitempty"`
+	CcRecipients []Recipient `json:"ccRecipients,omitempty"`
+}
+
+type ReplyPostRequestBody struct {
+	Message EmailMessage `json:"message"`
+}
+
+// SendDraftResponse function
 func (mc *MicrosoftClient) SendDraftResponse(ctx context.Context, userID, emailID string, draft DraftResponseMicrosoft) error {
 	if userID == "" || emailID == "" || draft.Content == "" {
 		return fmt.Errorf("invalid input: userID, emailID, and content cannot be empty")
@@ -217,50 +248,70 @@ func (mc *MicrosoftClient) SendDraftResponse(ctx context.Context, userID, emailI
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	message := graphmodels.NewMessage()
-	body := graphmodels.NewItemBody()
-
-	contentType := graphmodels.TEXT_BODYTYPE
-	if draft.IsHTML {
-		contentType = graphmodels.HTML_BODYTYPE
+	message := EmailMessage{
+		Body: EmailBody{
+			Content:     draft.Content,
+			ContentType: "text",
+		},
 	}
 
-	body.SetContent(&draft.Content)
-	body.SetContentType(&contentType)
-	message.SetBody(body)
+	if draft.IsHTML {
+		message.Body.ContentType = "html"
+	}
 
 	// Add recipients if specified
 	if len(draft.Recipients) > 0 {
-		recipients := make([]graphmodels.Recipientable, len(draft.Recipients))
+		message.ToRecipients = make([]Recipient, len(draft.Recipients))
 		for i, email := range draft.Recipients {
-			recipient := graphmodels.NewRecipient()
-			emailAddress := graphmodels.NewEmailAddress()
-			emailAddress.SetAddress(&email)
-			recipient.SetEmailAddress(emailAddress)
-			recipients[i] = recipient
+			message.ToRecipients[i] = Recipient{EmailAddress: EmailAddress{Address: email}}
 		}
-		message.SetToRecipients(recipients)
 	}
 
 	// Add CC recipients if specified
 	if len(draft.CCRecipients) > 0 {
-		ccRecipients := make([]graphmodels.Recipientable, len(draft.CCRecipients))
+		message.CcRecipients = make([]Recipient, len(draft.CCRecipients))
 		for i, email := range draft.CCRecipients {
-			recipient := graphmodels.NewRecipient()
-			emailAddress := graphmodels.NewEmailAddress()
-			emailAddress.SetAddress(&email)
-			recipient.SetEmailAddress(emailAddress)
-			ccRecipients[i] = recipient
+			message.CcRecipients[i] = Recipient{EmailAddress: EmailAddress{Address: email}}
 		}
-		message.SetCcRecipients(ccRecipients)
 	}
 
-	requestBody := graphusers.NewItemMessagesItemReplyPostRequestBody()
-	requestBody.SetMessage(message)
+	requestBody := ReplyPostRequestBody{
+		Message: message,
+	}
 
-	err := mc.graphClient.Users().ByUserId(userID).Messages().ByMessageId(emailID).Reply().Post(ctx, requestBody, nil)
+	// Convert requestBody to JSON
+	jsonBody, err := json.Marshal(requestBody)
 	if err != nil {
-		return fmt.Errorf("failed to send draft response: %w", err)
+		return fmt.Errorf("failed to marshal request body: %w", err)
+	}
+
+	// Create the HTTP request
+	url := fmt.Sprintf("https://graph.microsoft.com/v1.0/users/%s/messages/%s/reply", userID, emailID)
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	// Add authorization header (you'll need to implement GetValidToken)
+	token, err := mc.GetValidToken(ctx, uuid.MustParse(userID))
+	if err != nil {
+		return fmt.Errorf("failed to get valid token: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	// Send the request
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
+		body, _ := ioutil.ReadAll(resp.Body)
+		return fmt.Errorf("failed to send draft response: status %d, body: %s", resp.StatusCode, string(body))
 	}
 
 	return nil
@@ -328,7 +379,10 @@ type OAuthConfig struct {
 
 func NewOAuthConfig() *OAuthConfig {
 	key := make([]byte, 32)
-	rand.Read(key)
+	_, err := rand.Read(key)
+	if err != nil {
+		log.Println("failed to create key: %w", err)
+	}
 
 	return &OAuthConfig{
 		ClientID:     os.Getenv("CLIENT_ID"),
@@ -342,7 +396,10 @@ func NewOAuthConfig() *OAuthConfig {
 
 func generateState() string {
 	b := make([]byte, 32)
-	rand.Read(b)
+	_, err := rand.Read(b)
+	if err != nil {
+		log.Println("failed to create key: %w", err)
+	}
 	return base64.URLEncoding.EncodeToString(b)
 }
 
@@ -463,6 +520,9 @@ func (mc *MicrosoftClient) exchangeCodeForToken(code string) (*TokenResponse, er
 func (mc *MicrosoftClient) handleUser(ctx context.Context, userInfo *UserInfo, token *TokenResponse) error {
 	user, err := mc.db.GetUserByMicrosoftID(ctx, sql.NullString{String: userInfo.ID, Valid: true})
 
+	//lets log out the user info so we can see what is in the body.
+	log.Println("userInfo", userInfo)
+
 	if err != nil {
 		// User doesn't exist, create a new one
 		user, err = mc.db.CreateUserWithMicrosoftID(ctx, store.CreateUserWithMicrosoftIDParams{
@@ -478,17 +538,17 @@ func (mc *MicrosoftClient) handleUser(ctx context.Context, userInfo *UserInfo, t
 
 	encryptedAccessToken, err := Encrypt(token.AccessToken, os.Getenv("ENCRYPTION_KEY"))
 	if err != nil {
-		fmt.Errorf("error encrypting access token: %w", err)
+		log.Println("error encrypting access token: %w", err)
 	}
 
 	encryptedRefreshToken, err := Encrypt(token.RefreshToken, os.Getenv("ENCRYPTION_KEY"))
 	if err != nil {
-		fmt.Errorf("error encrypting refresh token: %w", err)
+		log.Println("error encrypting refresh token: %w", err)
 	}
 
 	encryptedTokenType, err := Encrypt(token.TokenType, os.Getenv("ENCRYPTION_KEY"))
 	if err != nil {
-		fmt.Errorf("error encrypting token type: %w", err)
+		log.Println("error encrypting token type: %w", err)
 	}
 
 	expiryTime := time.Now().Add(time.Duration(token.ExpiresIn) * time.Second)
@@ -501,7 +561,7 @@ func (mc *MicrosoftClient) handleUser(ctx context.Context, userInfo *UserInfo, t
 		Tokentype:    sql.NullString{String: encryptedTokenType, Valid: true},
 	})
 	if err != nil {
-		fmt.Errorf("failed to insert token: %w", err)
+		log.Println("failed to insert token: %w", err)
 	}
 
 	return nil
@@ -549,6 +609,11 @@ func (mc *MicrosoftClient) MicrosoftRefreshToken(ctx context.Context, userID uui
 	tokenData.Set("client_secret", mc.config.ClientSecret)
 	tokenData.Set("refresh_token", existingToken.String)
 	tokenData.Set("grant_type", "refresh_token")
+
+	// Validate TenantID
+	if !isValidTenantID(mc.config.TenantID) {
+		return fmt.Errorf("invalid tenant ID")
+	}
 
 	tokenURL := fmt.Sprintf("https://login.microsoftonline.com/%s/oauth2/v2.0/token", mc.config.TenantID)
 	resp, err := http.PostForm(tokenURL, tokenData)
@@ -611,4 +676,105 @@ func (mc *MicrosoftClient) GetValidToken(ctx context.Context, userID uuid.UUID) 
 	}
 
 	return decryptedToken, nil
+}
+
+// Add this helper function
+func isValidTenantID(tenantID string) bool {
+	// Implement validation logic here
+	// For example, check if it's a valid UUID or meets Microsoft's tenant ID format
+	return len(tenantID) > 0 && len(tenantID) <= 36 // Basic length check
+}
+
+// GetAndLogUserEmails retrieves emails for the specified user and logs them
+func (mc *MicrosoftClient) GetAndLogUserEmails(ctx context.Context, userID uuid.UUID) error {
+	// Set timeout for the operation
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	// Get Microsoft user ID from database
+	user, err := mc.db.GetUserByID(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("failed to get user from database: %w", err)
+	}
+
+	if !user.MicrosoftID.Valid {
+		return fmt.Errorf("no Microsoft ID found for user")
+	}
+
+	// Create credential using access token
+	cred, err := azidentity.NewClientSecretCredential(
+		mc.config.TenantID,
+		mc.config.ClientID,
+		mc.config.ClientSecret,
+		nil,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create credential: %w", err)
+	}
+
+	// Create a new Graph client with credentials
+	graphClient, err := msgraphsdk.NewGraphServiceClientWithCredentials(cred, []string{"https://graph.microsoft.com/.default"})
+	if err != nil {
+		return fmt.Errorf("failed to create graph client: %w", err)
+	}
+
+	// Configure request options
+	options := &graphusers.ItemMessagesRequestBuilderGetRequestConfiguration{
+		QueryParameters: &graphusers.ItemMessagesRequestBuilderGetQueryParameters{
+			// Select specific fields to retrieve
+			Select: []string{
+				"subject",
+				"from",
+				"receivedDateTime",
+				"isRead",
+				"importance",
+				"hasAttachments",
+			},
+			// Order by received date, newest first
+			Orderby: []string{"receivedDateTime DESC"},
+			// Limit to top 50 messages
+			Top: pointer.Int32(50),
+		},
+	}
+
+	// Get messages for the user
+	messages, err := graphClient.Users().ByUserId(user.MicrosoftID.String).Messages().Get(ctx, options)
+	if err != nil {
+		var oe *odataerrors.ODataError
+		if errors.As(err, &oe) {
+			return fmt.Errorf("Microsoft Graph API error: %s", oe.Error())
+		}
+		return fmt.Errorf("failed to get messages: %w", err)
+	}
+
+	// Log messages with more detailed information
+	log.Printf("Retrieved %d messages for user %s", len(messages.GetValue()), userID)
+
+	for _, message := range messages.GetValue() {
+		logEntry := struct {
+			Subject     string    `json:"subject"`
+			From        string    `json:"from"`
+			ReceivedAt  time.Time `json:"receivedAt"`
+			IsRead      bool      `json:"isRead"`
+			Importance  string    `json:"importance"`
+			Attachments bool      `json:"hasAttachments"`
+		}{
+			Subject:     *message.GetSubject(),
+			From:        *message.GetFrom().GetEmailAddress().GetAddress(),
+			ReceivedAt:  *message.GetReceivedDateTime(),
+			IsRead:      *message.GetIsRead(),
+			Importance:  string(*message.GetImportance()),
+			Attachments: *message.GetHasAttachments(),
+		}
+
+		logJSON, err := json.Marshal(logEntry)
+		if err != nil {
+			log.Printf("Error marshaling email data: %v", err)
+			continue
+		}
+
+		log.Printf("Email: %s", string(logJSON))
+	}
+
+	return nil
 }
