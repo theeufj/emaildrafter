@@ -1,0 +1,30 @@
+namespace: emaildrafter
+output:
+  file_path: ./Fluid-Attacks-Results.csv
+  format: CSV
+working_dir: .
+language: EN
+sast:
+  include:
+    - .
+  exclude:
+    - glob(**/node_modules/**)
+    - glob(**/test/**)
+    - glob(**/emaildrafter/static/javascript/**)
+    - glob(**/dist/**)
+    - glob(**/build/**)
+    - glob(**/*.min.js)
+    - glob(**/*.bundle.js)
+  recursion-limit: 1000
+
+sca:
+  include:
+    - .
+  exclude:
+    - glob(**/test/**)
+    - glob(**/emaildrafter/static/javascript/**)
+    - glob(**/node_modules/**)
+    - glob(**/dist/**)
+    - glob(**/build/**)
+    - glob(**/*.min.js)
+    - glob(**/*.bundle.js)
