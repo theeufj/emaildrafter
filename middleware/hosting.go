@@ -153,7 +153,7 @@ func MicrosoftIdentityAssociationHandler(w http.ResponseWriter, r *http.Request)
 	association := map[string]interface{}{
 		"associatedApplications": []map[string]string{
 			{
-				"applicationId": "0adae431-82c7-4539-8aad-ac6d6351a7f9",
+				"applicationId": "1ad2f36c-529f-4cca-a226-05413b462614",
 			},
 		},
 	}
