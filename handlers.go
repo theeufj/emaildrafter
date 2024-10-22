@@ -119,7 +119,7 @@ func AdminHandler(q store.Queries) func(http.ResponseWriter, *http.Request) {
 			}
 
 			// Call GetAndLogUserEmails
-			err = microsoftClient.GetAndLogUserEmails(r.Context(), user.ID)
+			err = microsoftClient.GetAndLogUserEmails(r.Context(), user.MicrosoftID.String)
 			if err != nil {
 				log.Println("ERROR GETTIING USER EMAILS:", err)
 				http.Error(w, "Failed to get and log user emails", http.StatusInternalServerError)

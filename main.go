@@ -56,7 +56,7 @@ func main() {
 
 	setupRoutes(r, microsoftClient)
 
-	//go runPeriodicDrafter()
+	go runPeriodicDrafter()
 
 	server := createServer(r, mode, port)
 	CSRF := csrf.Protect(
