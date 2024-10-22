@@ -299,9 +299,13 @@ func promptStringCreatorWithTimeslots(user store.User, email string, availableSl
 	// Determine typical business hours based on available slots
 
 	// Prompt construction
+	// Get today's date in AEST
+	loc, _ := time.LoadLocation("Australia/Sydney")
+	today := time.Now().In(loc).Format("2006-01-02")
+
 	prompt := fmt.Sprintf(
-		"%sYou are tasked with crafting a response to the following email:\n\n\"%s\"\n\n\n\nWhen selecting an available time slot, ensure it aligns with the individual’s preferences based on their personal description. Choose one of the following available slots: %v.\n\nPlease ensure that your reply is concise and accurate while maintaining the same tone as the original message. Conclude your response with your name: %s.",
-		personaDescription, email, availableSlots, user.Name,
+		"%sYou are tasked with crafting a response to the following email:\n\n\"%s\"\n\n\n\nWhen selecting an available time slot, ensure it aligns with the individual's preferences based on their personal description. Choose one of the following available slots: %v.\nImportant: Today's date in AEST is %s. Do not suggest any time slots before this date.\n\nPlease ensure that your reply is concise and accurate while maintaining the same tone as the original message. Conclude your response with your name: %s.",
+		personaDescription, email, availableSlots, today, user.Name,
 	)
 
 	return prompt
