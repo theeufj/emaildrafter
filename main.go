@@ -48,13 +48,14 @@ func main() {
 	defer db.Close()
 
 	queries = store.New(db)
-	microsoftClient, err := middleware.NewMicrosoftClient(*queries)
-	if err != nil {
-		logger.Error("Failed to setup microsoft client", "error", err)
-		os.Exit(1)
-	}
+	// microsoftClient, err := middleware.NewMicrosoftClient(*queries)
+	// if err != nil {
+	// 	logger.Error("Failed to setup microsoft client", "error", err)
+	// 	os.Exit(1)
+	// }
+	// setupRoutes(r, microsoftClient)
 
-	setupRoutes(r, microsoftClient)
+	setupRoutes(r)
 
 	go runPeriodicDrafter()
 
@@ -189,7 +190,8 @@ func setupDatabase(dbHost string) (*sql.DB, error) {
 	return db, nil
 }
 
-func setupRoutes(r *mux.Router, microsoftClient *middleware.MicrosoftClient) {
+// func setupRoutes(r *mux.Router, microsoftClient *middleware.MicrosoftClient)
+func setupRoutes(r *mux.Router) {
 	r.Use(middleware.HSTS)
 	r.Use(middleware.SecurityHeaders)
 	r.Handle("/setpersona",
@@ -219,8 +221,8 @@ func setupRoutes(r *mux.Router, microsoftClient *middleware.MicrosoftClient) {
 	r.HandleFunc("/login/auth", middleware.LoginHandler)
 	r.HandleFunc("/login/callback", callbackHandler)
 	// microsoft login
-	r.HandleFunc("/login/microsoft", microsoftClient.LoginHandlerMicrosoft)
-	r.HandleFunc("/login/microsoft/callback", microsoftClient.CallbackHandlerMicrosoft)
+	// r.HandleFunc("/login/microsoft", microsoftClient.LoginHandlerMicrosoft)
+	// r.HandleFunc("/login/microsoft/callback", microsoftClient.CallbackHandlerMicrosoft)
 	// a path too https://aidrafter.xyz/.well-known/microsoft-identity-association.json
 	r.HandleFunc("/.well-known/microsoft-identity-association.json", middleware.MicrosoftIdentityAssociationHandler)
 
