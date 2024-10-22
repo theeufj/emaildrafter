@@ -112,19 +112,19 @@ func AdminHandler(q store.Queries) func(http.ResponseWriter, *http.Request) {
 
 			// if we are logged in create a microsoft client and get the users emails
 			// Create a MicrosoftClient instance
-			microsoftClient, err := middleware.NewMicrosoftClient(q)
-			if err != nil {
-				http.Error(w, "Failed to create Microsoft client", http.StatusInternalServerError)
-				return
-			}
+			// microsoftClient, err := middleware.NewMicrosoftClient(q)
+			// if err != nil {
+			// 	http.Error(w, "Failed to create Microsoft client", http.StatusInternalServerError)
+			// 	return
+			// }
 
-			// Call GetAndLogUserEmails
-			err = microsoftClient.GetAndLogUserEmails(r.Context(), user.MicrosoftID.String)
-			if err != nil {
-				log.Println("ERROR GETTIING USER EMAILS:", err)
-				http.Error(w, "Failed to get and log user emails", http.StatusInternalServerError)
-				return
-			}
+			// // Call GetAndLogUserEmails
+			// err = microsoftClient.GetAndLogUserEmails(r.Context(), user.MicrosoftID.String)
+			// if err != nil {
+			// 	log.Println("ERROR GETTIING USER EMAILS:", err)
+			// 	http.Error(w, "Failed to get and log user emails", http.StatusInternalServerError)
+			// 	return
+			// }
 
 			err = portal.Execute(w, data)
 			if err != nil {
