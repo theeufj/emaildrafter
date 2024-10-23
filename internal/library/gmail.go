@@ -248,7 +248,7 @@ func promptStringCreator(user store.User, email string) (bool, string) {
 
 	// Create the prompt
 	prompt := fmt.Sprintf(
-		"%s you are tasked with crafting a response to the following email:\n\n\"%s\"\n\nPlease ensure that your reply is concise and accurate, while maintaining the same tone as the original message. Conclude your response with your name: %s.",
+		"%s you are tasked with crafting a response to the following email:\n\n\"%s\"\n\nPlease ensure that your reply is concise, accurate, and in plain text format only. Maintain the same tone as the original message. Do not use any special formatting, quotation marks, or bullet points. Conclude your response with your name: %s.",
 		personaDescription, email, user.Name,
 	)
 
@@ -304,7 +304,7 @@ func promptStringCreatorWithTimeslots(user store.User, email string, availableSl
 	today := time.Now().In(loc).Format("2006-01-02")
 
 	prompt := fmt.Sprintf(
-		"%sYou are tasked with crafting a response to the following email:\n\n\"%s\"\n\n\n\nWhen selecting an available time slot, ensure it aligns with the individual's preferences based on their personal description. Choose one of the following available slots: %v.\nImportant: Today's date in AEST is %s. Do not suggest any time slots before this date.\n\nPlease ensure that your reply is concise and accurate while maintaining the same tone as the original message. Conclude your response with your name: %s.",
+		"%sYou are tasked with crafting a response to the following email:\n\n\"%s\"\n\n\nPlease recommend three specific 45-minute time slots for a meeting, choosing from the following available times: %v.\nImportant: Today's date in AEST is %s. Do not suggest any time slots before this date.\n\nEnsure your reply is concise and accurate while maintaining the same tone as the original message. Include the three suggested time slots in your response, formatted as 'Day, Date Time (AEST)'. Conclude your response with your name: %s.",
 		personaDescription, email, availableSlots, today, user.Name,
 	)
 
