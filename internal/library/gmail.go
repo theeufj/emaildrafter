@@ -302,6 +302,7 @@ func promptStringCreatorWithTimeslots(user store.User, email string, availableSl
 	// Get today's date in AEST
 	loc, _ := time.LoadLocation("Australia/Sydney")
 	today := time.Now().In(loc).Format("2006-01-02")
+	log.Println("Today's date in AEST is: ", today)
 
 	prompt := fmt.Sprintf(
 		"%sYou are tasked with crafting a response to the following email:\n\n\"%s\"\n\n\nPlease recommend three specific 45-minute time slots for a meeting, choosing from the following available times: %v.\nImportant: Today's date in AEST is %s. Use this as your reference point and do not suggest any time slots before this date.\n\nEnsure your reply is concise and accurate while maintaining the same tone as the original message. Include the three suggested time slots in your response, formatted as 'Day, DD MMM HH:MM' in plain text. Do not use any special characters, bullet points, or formatting except for new line characters between time slots. Only include the timezone (AEST) if the meeting is online. Conclude your response with your name: %s.",
