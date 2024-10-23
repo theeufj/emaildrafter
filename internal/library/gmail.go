@@ -317,6 +317,8 @@ func promptStringCreatorWithTimeslots(user store.User, email string, availableSl
 		monday.AddDate(0, 0, 5).Format(dateFormat),
 		monday.AddDate(0, 0, 6).Format(dateFormat),
 	}
+	// logout all of the available slots
+	log.Println("\n\n\n\n ########################## The available slots are: \n\n\n\n", availableSlots)
 
 	prompt := fmt.Sprintf(
 		"%sYou are tasked with crafting a response to the following email:\n\n\"%s\"\n\n\nPlease recommend three specific 45-minute time slots for a meeting, choosing from the following available times: %v.\nImportant: The current week's dates are as follows:\n%s\nToday's date is %s. Use these dates as your reference and do not suggest any time slots before today.\n\nEnsure your reply is concise and accurate while maintaining the same tone as the original message. Include the three suggested time slots in your response, formatted as 'Day, DD MMM HH:MM' in plain text. Do not use any special characters, bullet points, or formatting except for new line characters between time slots. Only include the timezone (AEST) if the meeting is online. Conclude your response with your name: %s.",
