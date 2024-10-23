@@ -297,35 +297,55 @@ func promptStringCreatorWithTimeslots(user store.User, email string, availableSl
 	}
 
 	// Determine typical business hours based on available slots
-
-	// Prompt construction
-	// Get today's date in AEST
 	loc, _ := time.LoadLocation("Australia/Sydney")
-	today := time.Now().In(loc).Format("2006-01-02")
-	log.Println("Today's date in AEST is: ", today)
-
 	// Get the current week's dates in AEST
 	now := time.Now().In(loc)
-	monday := now.AddDate(0, 0, -int(now.Weekday())+1)
-	dateFormat := "Monday, 02 Jan"
-	weekDates := []string{
-		monday.Format(dateFormat),
-		monday.AddDate(0, 0, 1).Format(dateFormat),
-		monday.AddDate(0, 0, 2).Format(dateFormat),
-		monday.AddDate(0, 0, 3).Format(dateFormat),
-		monday.AddDate(0, 0, 4).Format(dateFormat),
-		monday.AddDate(0, 0, 5).Format(dateFormat),
-		monday.AddDate(0, 0, 6).Format(dateFormat),
-	}
 	// logout all of the available slots
-	log.Println("\n\n\n\n ########################## The available slots are: \n\n\n\n", availableSlots)
+	// Filter available slots to business hours (9 AM to 5 PM)
+	businessHourSlots := filterBusinessHours(availableSlots)
+
+	// Limit the number of slots to a reasonable amount (e.g., 15)
+	limitedSlots := limitSlots(businessHourSlots, 25)
 
 	prompt := fmt.Sprintf(
-		"%sYou are tasked with crafting a response to the following email:\n\n\"%s\"\n\n\nPlease recommend three specific 45-minute time slots for a meeting, choosing from the following available times: %v.\nImportant: The current week's dates are as follows:\n%s\nToday's date is %s. Use these dates as your reference and do not suggest any time slots before today.\n\nEnsure your reply is concise and accurate while maintaining the same tone as the original message. Include the three suggested time slots in your response, formatted as 'Day, DD MMM HH:MM' in plain text. Do not use any special characters, bullet points, or formatting except for new line characters between time slots. Only include the timezone (AEST) if the meeting is online. Conclude your response with your name: %s.",
-		personaDescription, email, availableSlots, strings.Join(weekDates, "\n"), now.Format(dateFormat), user.Name,
+		"%sYou are tasked with crafting a response to the following email:\n\n\"%s\"\n\n"+
+			"Based on the email content, determine:\n"+
+			"1. The specific time frame requested (e.g., tonight, this week, etc.)\n"+
+			"2. Whether the request implies a fixed duration or an open-ended meeting\n"+
+			"3. If the meeting is for business (suggest times between 9 AM and 5 PM) or social (suggest times after 5 PM on weekdays or any time on weekends)\n"+
+			"Prioritize suggesting time slots that match these criteria.\n"+
+			"Here are the available time slots:\n%s\n"+
+			"Important: Today's date is %s, and the current time is %s. Only suggest time slots that are after the current time.\n\n"+
+			"Ensure your reply is concise and accurate while maintaining a friendly tone. Begin with a greeting, then address the availability based on the request. "+
+			"If you are available and the request implies an open-ended meeting (e.g., 'grab a drink'), suggest up to three start times in your response, formatted as 'I'm free from Day, DD MMM HH:MM PM'. Do not include end times for open-ended meetings. "+
+			"If the request implies a fixed duration, include both start and end times, formatted as 'Day, DD MMM HH:MM PM to HH:MM PM'. "+
+			"If no suitable slots are available for the requested time frame, politely suggest alternative times.\n"+
+			"Do not use any special characters, bullet points, or formatting except for new line characters between parts of your message. "+
+			"Conclude your response with your name: %s.",
+		personaDescription, email, strings.Join(limitedSlots, "\n"), now.Format("Monday, 02 Jan"), now.Format("15:04"), user.Name,
 	)
-
 	return prompt
+}
+
+// Helper functions
+
+func filterBusinessHours(slots []string) []string {
+	var businessSlots []string
+	for _, slot := range slots {
+		startTime := strings.Split(slot, " to ")[0]
+		t, _ := time.Parse("Mon, 02 Jan 15:04", startTime)
+		if t.Hour() >= 9 && t.Hour() < 17 {
+			businessSlots = append(businessSlots, slot)
+		}
+	}
+	return businessSlots
+}
+
+func limitSlots(slots []string, limit int) []string {
+	if len(slots) > limit {
+		return slots[:limit]
+	}
+	return slots
 }
 
 // drafts a response using Gemini.
@@ -867,26 +887,32 @@ func findAvailableTimeSlots(events []struct {
 	} `json:"end"`
 }) []string {
 	var availableSlots []string
-	now := time.Now()
+	now := time.Now().Round(time.Minute)
+	slotDuration := 45 * time.Minute
 
 	// Iterate through the events and find gaps
 	for _, event := range events {
 		eventStart, _ := time.Parse(time.RFC3339, event.Start.DateTime)
 		eventEnd, _ := time.Parse(time.RFC3339, event.End.DateTime)
 
-		if eventEnd.After(now) {
-			gapDuration := eventStart.Sub(now)
-			if gapDuration.Hours() >= 1 {
-				availableSlots = append(availableSlots, fmt.Sprintf("Available from %s to %s", now.Format(time.RFC1123), eventStart.Format(time.RFC1123)))
+		if eventStart.After(now) {
+			for slotStart := now; slotStart.Add(slotDuration).Before(eventStart); slotStart = slotStart.Add(slotDuration) {
+				slotEnd := slotStart.Add(slotDuration)
+				availableSlots = append(availableSlots, fmt.Sprintf("%s to %s",
+					slotStart.Format("Mon, 02 Jan 15:04"),
+					slotEnd.Format("15:04")))
 			}
-			now = eventEnd
 		}
+		now = eventEnd
 	}
 
 	// Check for availability after the last event
 	oneWeekLater := time.Now().Add(7 * 24 * time.Hour)
-	if oneWeekLater.After(now) {
-		availableSlots = append(availableSlots, fmt.Sprintf("Available from %s to %s", now.Format(time.RFC1123), oneWeekLater.Format(time.RFC1123)))
+	for slotStart := now; slotStart.Add(slotDuration).Before(oneWeekLater); slotStart = slotStart.Add(slotDuration) {
+		slotEnd := slotStart.Add(slotDuration)
+		availableSlots = append(availableSlots, fmt.Sprintf("%s to %s",
+			slotStart.Format("Mon, 02 Jan 15:04"),
+			slotEnd.Format("15:04")))
 	}
 
 	return availableSlots
@@ -905,8 +931,6 @@ func SentEmailReader(srv *gmail.Service, user store.User, queries *store.Queries
 	if len(sentEmails) > limit {
 		sentEmails = sentEmails[:limit]
 	}
-
-	log.Println(sentEmails)
 	// Extract body messages from sent emails
 	var bodyMessages []string
 	for _, email := range sentEmails {
@@ -1016,4 +1040,22 @@ func analyzeCommStyle(bodyMessages []string, email string) (string, error) {
 	}
 
 	return unquoted, nil
+}
+
+func filterAppropriateHours(slots []string, isBusinessMeeting bool) []string {
+	var appropriateSlots []string
+	for _, slot := range slots {
+		startTime := strings.Split(slot, " to ")[0]
+		t, _ := time.Parse("Mon, 02 Jan 15:04", startTime)
+		if isBusinessMeeting {
+			if t.Hour() >= 9 && t.Hour() < 17 && t.Weekday() != time.Saturday && t.Weekday() != time.Sunday {
+				appropriateSlots = append(appropriateSlots, slot)
+			}
+		} else {
+			if t.Hour() >= 17 || t.Weekday() == time.Saturday || t.Weekday() == time.Sunday {
+				appropriateSlots = append(appropriateSlots, slot)
+			}
+		}
+	}
+	return appropriateSlots
 }
