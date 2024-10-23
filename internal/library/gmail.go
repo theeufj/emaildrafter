@@ -304,9 +304,23 @@ func promptStringCreatorWithTimeslots(user store.User, email string, availableSl
 	today := time.Now().In(loc).Format("2006-01-02")
 	log.Println("Today's date in AEST is: ", today)
 
+	// Get the current week's dates in AEST
+	now := time.Now().In(loc)
+	monday := now.AddDate(0, 0, -int(now.Weekday())+1)
+	dateFormat := "Monday, 02 Jan"
+	weekDates := []string{
+		monday.Format(dateFormat),
+		monday.AddDate(0, 0, 1).Format(dateFormat),
+		monday.AddDate(0, 0, 2).Format(dateFormat),
+		monday.AddDate(0, 0, 3).Format(dateFormat),
+		monday.AddDate(0, 0, 4).Format(dateFormat),
+		monday.AddDate(0, 0, 5).Format(dateFormat),
+		monday.AddDate(0, 0, 6).Format(dateFormat),
+	}
+
 	prompt := fmt.Sprintf(
-		"%sYou are tasked with crafting a response to the following email:\n\n\"%s\"\n\n\nPlease recommend three specific 45-minute time slots for a meeting, choosing from the following available times: %v.\nImportant: Today's date in AEST is %s. Use this as your reference point and do not suggest any time slots before this date.\n\nEnsure your reply is concise and accurate while maintaining the same tone as the original message. Include the three suggested time slots in your response, formatted as 'Day, DD MMM HH:MM' in plain text. Do not use any special characters, bullet points, or formatting except for new line characters between time slots. Only include the timezone (AEST) if the meeting is online. Conclude your response with your name: %s.",
-		personaDescription, email, availableSlots, today, user.Name,
+		"%sYou are tasked with crafting a response to the following email:\n\n\"%s\"\n\n\nPlease recommend three specific 45-minute time slots for a meeting, choosing from the following available times: %v.\nImportant: The current week's dates are as follows:\n%s\nToday's date is %s. Use these dates as your reference and do not suggest any time slots before today.\n\nEnsure your reply is concise and accurate while maintaining the same tone as the original message. Include the three suggested time slots in your response, formatted as 'Day, DD MMM HH:MM' in plain text. Do not use any special characters, bullet points, or formatting except for new line characters between time slots. Only include the timezone (AEST) if the meeting is online. Conclude your response with your name: %s.",
+		personaDescription, email, availableSlots, strings.Join(weekDates, "\n"), now.Format(dateFormat), user.Name,
 	)
 
 	return prompt
