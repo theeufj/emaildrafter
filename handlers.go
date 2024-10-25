@@ -78,53 +78,39 @@ func AdminHandler(q store.Queries) func(http.ResponseWriter, *http.Request) {
 		handler := csrfMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Get the user by their google id, which is found in the loggedIn cookie
 			cookie, err := r.Cookie("loggedIn")
+			log.Println("cookie", cookie)
 			if err != nil {
 				log.Println("Cookie error:", err)
 				http.Error(w, "Unauthorized", http.StatusUnauthorized)
-				return
+				// redirect to login page
+				http.Redirect(w, r, "/", http.StatusFound)
 			}
 
 			user, err := q.GetUserByGoogleID(r.Context(), sql.NullString{String: cookie.Value, Valid: true})
 			if err != nil {
 				user, err = q.GetUserByMicrosoftID(r.Context(), sql.NullString{String: cookie.Value, Valid: true})
 				if err != nil {
-					http.Error(w, "User not found", http.StatusNotFound)
-					return
+					log.Println("error getting user by id", err)
 				}
+				log.Println("user by id", user.ID)
 			}
+			log.Println("user", user.ID)
 
 			// Generate CSRF token
 			csrfToken := csrf.Token(r)
 			log.Println("Generated CSRF Token:", csrfToken)
-
-			logs, err := q.GetLogsByUserID(r.Context(), user.ID)
-			if err != nil {
-				log.Println("Error fetching logs:", err)
-				logs = []store.Log{} // Initialize empty slice to avoid nil
-			}
-
 			// Create a map of user and logs
 			data := map[string]interface{}{
 				"User":      user,
-				"Logs":      logs,
 				"csrfToken": csrfToken,
 			}
 
-			// if we are logged in create a microsoft client and get the users emails
-			// Create a MicrosoftClient instance
-			// microsoftClient, err := middleware.NewMicrosoftClient(q)
-			// if err != nil {
-			// 	http.Error(w, "Failed to create Microsoft client", http.StatusInternalServerError)
-			// 	return
-			// }
+			// // if we are logged in create a microsoft client and get the users emails
+			// // Create a MicrosoftClient instance
 
 			// // Call GetAndLogUserEmails
-			// err = microsoftClient.GetAndLogUserEmails(r.Context(), user.MicrosoftID.String)
-			// if err != nil {
-			// 	log.Println("ERROR GETTIING USER EMAILS:", err)
-			// 	http.Error(w, "Failed to get and log user emails", http.StatusInternalServerError)
-			// 	return
-			// }
+			log.Println("getting mailbox for user", user.ID)
+			middleware.GetMailBoxMicrosoft(user.Email, user, &q)
 
 			err = portal.Execute(w, data)
 			if err != nil {

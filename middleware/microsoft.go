@@ -1,286 +1,489 @@
 package middleware
 
-// import (
-// 	"context"
-// 	"crypto/rand"
-// 	"database/sql"
-// 	"emaildrafter/database/store"
-// 	"encoding/base64"
-// 	"encoding/json"
-// 	"fmt"
-// 	"log"
-// 	"net/http"
-// 	"net/url"
-// 	"os"
-// 	"strings"
-// 	"time"
+import (
+	"context"
+	"database/sql"
+	"emaildrafter/database/store"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"os"
+	"time"
 
-// 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-// 	"github.com/golang-jwt/jwt"
-// 	"github.com/gorilla/sessions"
-// 	msgraphsdk "github.com/microsoftgraph/msgraph-sdk-go"
-// )
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/joho/godotenv"
+	msgraphsdk "github.com/microsoftgraph/msgraph-sdk-go"
+	graphmodels "github.com/microsoftgraph/msgraph-sdk-go/models"
+	"github.com/microsoftgraph/msgraph-sdk-go/models/odataerrors"
+	"github.com/microsoftgraph/msgraph-sdk-go/users"
+	"golang.org/x/exp/rand"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/microsoft"
+)
 
-// // ClientConfig holds the configuration for MicrosoftClient
-// type ClientConfig struct {
-// 	TenantID     string
-// 	ClientID     string
-// 	ClientSecret string
-// 	RedirectURL  string
-// 	Store        *sessions.CookieStore
-// }
+type accessToken azcore.AccessToken
 
-// // MicrosoftClient handles OAuth interactions
-// type MicrosoftClient struct {
-// 	config ClientConfig
-// 	db     store.Queries
-// }
+// Updated microsoftMail struct to match the email message structure
+type microsoftMail struct {
+	Messages []EmailMessage `json:"messages"`
+	Error    string         `json:"error,omitempty"`
+}
 
-// // TokenResponse represents the OAuth token response from Microsoft
-// type TokenResponse struct {
-// 	AccessToken  string `json:"access_token"`
-// 	IDToken      string `json:"id_token"`
-// 	TokenType    string `json:"token_type"`
-// 	ExpiresIn    int    `json:"expires_in"`
-// 	Scope        string `json:"scope"`
-// 	RefreshToken string `json:"refresh_token"`
-// }
+type EmailMessage struct {
+	Subject          string    `json:"subject"`
+	From             string    `json:"from"`
+	ReceivedDateTime time.Time `json:"receivedDateTime"`
+	Body             string    `json:"body"`
+	IsRead           bool      `json:"isRead"`
+	ID               string    `json:"id"`
+}
 
-// // UserInfo represents basic Microsoft user information
-// type UserInfo struct {
-// 	ID          string `json:"id"`
-// 	DisplayName string `json:"displayName"`
-// 	Email       string `json:"mail"`
-// }
+type microsoftUser struct {
+	DisplayName       string `json:"displayName"`
+	GivenName         string `json:"givenName"`
+	Surname           string `json:"surname"`
+	UserPrincipalName string `json:"userPrincipalName"`
+	Id                string `json:"id"`
+	Mail              string `json:"mail"`
+	MobilePhone       string `json:"mobilePhone"`
+	JobTitle          string `json:"jobTitle"`
+	OfficeLocation    string `json:"officeLocation"`
+}
 
-// // IDTokenClaims represents the claims in the ID token
-// type IDTokenClaims struct {
-// 	Email string `json:"email"`
-// 	Name  string `json:"name"`
-// 	Sub   string `json:"sub"`
-// 	jwt.StandardClaims
-// }
+const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
-// // NewMicrosoftClient creates a new instance of MicrosoftClient
-// func NewMicrosoftClient(db store.Queries) (*MicrosoftClient, error) {
-// 	config := ClientConfig{
-// 		TenantID:     os.Getenv("TENANT_ID"),
-// 		ClientID:     os.Getenv("CLIENT_ID"),
-// 		ClientSecret: os.Getenv("CLIENT_SECRET"),
-// 		RedirectURL:  os.Getenv("REDIRECT_URL"),
-// 	}
+var ssoMicrofsoft *oauth2.Config
+var RandomString = RandStringBytes(512)
 
-// 	if config.TenantID == "" || config.ClientID == "" || config.ClientSecret == "" {
-// 		return nil, fmt.Errorf("invalid configuration: tenant ID, client ID, and client secret are required")
-// 	}
+// GraphHelper is a helper for the Microsoft Graph API
+// the following needs to interative micrsoft graph api
+func init() {
+	err := godotenv.Load("./.env")
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+	ssoMicrofsoft = &oauth2.Config{
+		RedirectURL:  os.Getenv("REDIRECT_URL"),
+		ClientID:     os.Getenv("CLIENT_ID"),
+		ClientSecret: os.Getenv("CLIENT_SECRET"),
+		Scopes:       []string{"user.read", "offline_access", "Mail.ReadWrite", "mail.send"},
+		Endpoint:     microsoft.AzureADEndpoint(os.Getenv("TENANT_ID")),
+	}
+}
+func create_token(email string, queries *store.Queries) accessToken {
+	microfsoftUserReturned, _ := queries.GetUserByEmail(context.Background(), email)
+	tokenRefresh := &oauth2.Token{
+		AccessToken:  microfsoftUserReturned.Accesstoken.String,
+		TokenType:    microfsoftUserReturned.Tokentype.String,
+		RefreshToken: microfsoftUserReturned.Refreshtoken.String,
+		Expiry:       microfsoftUserReturned.Expiry.Time,
+	}
+	t := ssoMicrofsoft.TokenSource(context.Background(), tokenRefresh)
+	// updates the token stored in the db everytime we call create token.
+	queries.InsertTokenByUserID(context.Background(), store.InsertTokenByUserIDParams{
+		ID:           microfsoftUserReturned.ID,
+		Accesstoken:  sql.NullString{String: tokenRefresh.AccessToken, Valid: true},
+		Tokentype:    sql.NullString{String: tokenRefresh.TokenType, Valid: true},
+		Refreshtoken: sql.NullString{String: tokenRefresh.RefreshToken, Valid: true},
+		Expiry:       sql.NullTime{Time: tokenRefresh.Expiry, Valid: true},
+	})
+	newToken, _ := t.Token()
+	myTk := accessToken(azcore.AccessToken{
+		Token:     newToken.AccessToken, // replace with real token
+		ExpiresOn: newToken.Expiry,      // replace with real expiration date
+	})
+	var _ azcore.TokenCredential = myTk
+	return myTk
+}
 
-// 	// Create session store
-// 	key := make([]byte, 32)
-// 	if _, err := rand.Read(key); err != nil {
-// 		return nil, fmt.Errorf("failed to create session key: %w", err)
-// 	}
-// 	config.Store = sessions.NewCookieStore(key)
+// Updated SendMail function with better error handling
 
-// 	return &MicrosoftClient{
-// 		config: config,
-// 		db:     db,
-// 	}, nil
-// }
+func SendMail(contentBond *string, id string, email string, queries *store.Queries) error {
+	t := create_token(email, queries)
+	graphClient, err := msgraphsdk.NewGraphServiceClientWithCredentials(t, []string{
+		"user.read",
+		"Mail.ReadWrite",
+		"offline_access",
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create graph client: %w", err)
+	}
 
-// // LoginHandlerMicrosoft initiates the OAuth flow
-// func (mc *MicrosoftClient) LoginHandlerMicrosoft(w http.ResponseWriter, r *http.Request) {
-// 	state := mc.generateState()
+	requestBody := graphmodels.NewMessage()
+	body := graphmodels.NewItemBody()
+	contentType := graphmodels.TEXT_BODYTYPE
+	body.SetContentType(&contentType)
+	body.SetContent(contentBond)
+	requestBody.SetBody(body)
 
-// 	// Store state in cookie
-// 	cookie := &http.Cookie{
-// 		Name:     "oauthstate",
-// 		Value:    state,
-// 		Path:     "/",
-// 		HttpOnly: true,
-// 		Secure:   true,
-// 		SameSite: http.SameSiteLaxMode,
-// 	}
-// 	http.SetCookie(w, cookie)
+	sendMailBody := users.NewItemMessagesItemCreateReplyPostRequestBody()
+	sendMailBody.SetMessage(requestBody)
 
-// 	// Build authorization URL
-// 	scopes := url.QueryEscape("openid email profile User.Read offline_access")
-// 	authURL := fmt.Sprintf(
-// 		"https://login.microsoftonline.com/%s/oauth2/v2.0/authorize?"+
-// 			"client_id=%s"+
-// 			"&response_type=code"+
-// 			"&redirect_uri=%s"+
-// 			"&scope=%s"+
-// 			"&state=%s",
-// 		mc.config.TenantID,
-// 		mc.config.ClientID,
-// 		url.QueryEscape(mc.config.RedirectURL),
-// 		scopes,
-// 		state,
-// 	)
+	_, err = graphClient.Me().Messages().ByMessageId(id).CreateReply().Post(
+		context.Background(),
+		sendMailBody,
+		nil, // Using nil for config since we don't need custom headers
+	)
 
-// 	http.Redirect(w, r, authURL, http.StatusTemporaryRedirect)
-// }
+	if err != nil {
+		// Check for OData error
+		if odataErr, ok := err.(*odataerrors.ODataError); ok {
+			log.Println(odataErr.Error())
+		}
 
-// // CallbackHandlerMicrosoft handles the OAuth callback
-// func (mc *MicrosoftClient) CallbackHandlerMicrosoft(w http.ResponseWriter, r *http.Request) {
-// 	// Verify state
-// 	oauthState, err := r.Cookie("oauthstate")
-// 	if err != nil || r.FormValue("state") != oauthState.Value {
-// 		http.Error(w, "Invalid OAuth state", http.StatusBadRequest)
-// 		return
-// 	}
+		// Check for HTTP response error
+		if errResp, ok := err.(interface{ Response() *http.Response }); ok && errResp.Response() != nil {
+			resp := errResp.Response()
+			body, _ := io.ReadAll(resp.Body)
+			defer resp.Body.Close()
+			return fmt.Errorf("failed to send mail: status=%d, body=%s",
+				resp.StatusCode, string(body))
+		}
+		return fmt.Errorf("failed to send mail: %w", err)
+	}
 
-// 	// Exchange code for token
-// 	code := r.FormValue("code")
-// 	if code == "" {
-// 		http.Error(w, "Code not found", http.StatusBadRequest)
-// 		return
-// 	}
+	return nil
+}
 
-// 	token, idTokenClaims, err := mc.exchangeCodeForToken(code)
-// 	if err != nil {
-// 		log.Printf("Error exchanging code for token: %v", err)
-// 		http.Error(w, "Failed to exchange code for token", http.StatusInternalServerError)
-// 		return
-// 	}
+// Ensure accessToken implements TokenCredential interface
+func (a accessToken) GetToken(ctx context.Context, options policy.TokenRequestOptions) (azcore.AccessToken, error) {
+	return azcore.AccessToken(a), nil
+}
 
-// 	// Create user info from ID token claims
-// 	userInfo := &UserInfo{
-// 		ID:          idTokenClaims.Sub,
-// 		DisplayName: idTokenClaims.Name,
-// 		Email:       idTokenClaims.Email,
-// 	}
+// handles the mailbox and drafts a response to the 3 most recent emails.
+func GetMailBoxMicrosoft(email string, user store.User, queries *store.Queries) microsoftMail {
+	log.Println("getting mailbox for user", user.ID)
+	newMail := microsoftMail{
+		Messages: make([]EmailMessage, 0),
+	}
 
-// 	// Handle user creation/update
-// 	if err := mc.handleUser(r.Context(), userInfo, token); err != nil {
-// 		http.Error(w, "Failed to handle user", http.StatusInternalServerError)
-// 		return
-// 	}
+	t := create_token(email, queries)
+	log.Printf("Debug - Token: %s (first 20 chars)", t.Token[:20])
+	log.Printf("Debug - Token expiry: %v", t.ExpiresOn)
 
-// 	// Set session cookie
-// 	cookie := &http.Cookie{
-// 		Name:     "loggedIn",
-// 		Value:    userInfo.ID,
-// 		Path:     "/",
-// 		HttpOnly: true,
-// 		Secure:   true,
-// 		SameSite: http.SameSiteLaxMode,
-// 		MaxAge:   3600,
-// 	}
-// 	http.SetCookie(w, cookie)
+	// Create a debugging transport
+	debugTransport := &debugTransport{
+		base: http.DefaultTransport,
+	}
 
-// 	http.Redirect(w, r, "/admin", http.StatusFound)
-// }
+	// Create a custom HTTP client with the debug transport
+	httpClient := &http.Client{
+		Transport: debugTransport,
+	}
 
-// // Helper functions
-// func (mc *MicrosoftClient) generateState() string {
-// 	b := make([]byte, 16)
-// 	rand.Read(b)
-// 	return base64.URLEncoding.EncodeToString(b)
-// }
+	// Create a TokenCredential from the accessToken
+	tokenCredential := msgraphsdk.NewTokenCredential(string(t.Token))
 
-// func (mc *MicrosoftClient) exchangeCodeForToken(code string) (*TokenResponse, *IDTokenClaims, error) {
-// 	data := url.Values{}
-// 	data.Set("client_id", mc.config.ClientID)
-// 	data.Set("client_secret", mc.config.ClientSecret)
-// 	data.Set("code", code)
-// 	data.Set("grant_type", "authorization_code")
-// 	data.Set("redirect_uri", mc.config.RedirectURL)
+	// Create adapter with custom client and token credential
+	adapter, err := msgraphsdk.NewGraphRequestAdapter(tokenCredential)
+	if err != nil {
+		log.Printf("Error creating adapter: %v", err)
+		newMail.Error = "Failed to create graph adapter"
+		return newMail
+	}
 
-// 	resp, err := http.PostForm(
-// 		fmt.Sprintf("https://login.microsoftonline.com/%s/oauth2/v2.0/token", mc.config.TenantID),
-// 		data,
-// 	)
-// 	if err != nil {
-// 		return nil, nil, fmt.Errorf("failed to exchange code: %w", err)
-// 	}
-// 	defer resp.Body.Close()
+	// Set the custom HTTP client on the adapter
+	adapter.SetHttpClient(httpClient)
 
-// 	var tokenResp TokenResponse
-// 	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
-// 		return nil, nil, fmt.Errorf("failed to decode token response: %w", err)
-// 	}
+	// Create graph client with the custom adapter
+	graphClient := msgraphsdk.NewGraphServiceClient(adapter)
 
-// 	// Decode ID token
-// 	claims, err := decodeIDToken(tokenResp.IDToken)
-// 	if err != nil {
-// 		return nil, nil, fmt.Errorf("failed to decode ID token: %w", err)
-// 	}
+	var topValue int32 = 3
+	query := users.ItemMailFoldersItemMessagesRequestBuilderGetQueryParameters{
+		Select: []string{
+			"from",
+			"isRead",
+			"receivedDateTime",
+			"subject",
+			"body",
+			"id",
+		},
+		Top:     &topValue,
+		Orderby: []string{"receivedDateTime DESC"},
+	}
 
-// 	return &tokenResp, claims, nil
-// }
+	requestHeaders := users.ItemMailFoldersItemMessagesRequestBuilderGetRequestConfiguration{
+		QueryParameters: &query,
+	}
 
-// func decodeIDToken(idToken string) (*IDTokenClaims, error) {
-// 	parts := strings.Split(idToken, ".")
-// 	if len(parts) != 3 {
-// 		return nil, fmt.Errorf("invalid token format")
-// 	}
+	// First, try to get the user profile to verify authentication
+	userProfile, err := graphClient.Me().Get(context.Background(), nil)
+	if err != nil {
+		log.Printf("Error fetching user profile: %v", err)
+		newMail.Error = fmt.Sprintf("Authentication test failed: %v", err)
+		return newMail
+	}
+	log.Printf("Debug - Successfully authenticated as user: %v", *userProfile.GetDisplayName())
 
-// 	payload, err := jwt.DecodeSegment(parts[1])
-// 	if err != nil {
-// 		return nil, fmt.Errorf("failed to decode token payload: %w", err)
-// 	}
+	messages, err := graphClient.Me().MailFolders().
+		ByMailFolderId("inbox").
+		Messages().
+		Get(context.Background(), &requestHeaders)
 
-// 	var claims IDTokenClaims
-// 	if err := json.Unmarshal(payload, &claims); err != nil {
-// 		return nil, fmt.Errorf("failed to parse claims: %w", err)
-// 	}
+	if err != nil {
+		log.Printf("Error fetching messages: %v", err)
 
-// 	return &claims, nil
-// }
+		// Check for OData error
+		if odataErr, ok := err.(*odataerrors.ODataError); ok {
+			log.Printf("OData error: %v", odataErr)
+			newMail.Error = fmt.Sprintf("OData error: %v", odataErr)
+			return newMail
+		}
 
-// func (mc *MicrosoftClient) handleUser(ctx context.Context, userInfo *UserInfo, token *TokenResponse) error {
-// 	// Check if user exists
-// 	user, err := mc.db.GetUserByMicrosoftID(ctx, sql.NullString{String: userInfo.ID, Valid: true})
-// 	if err != nil {
-// 		// Create new user if not found
-// 		user, err = mc.db.CreateUserWithMicrosoftID(ctx, store.CreateUserWithMicrosoftIDParams{
-// 			MicrosoftID: sql.NullString{String: userInfo.ID, Valid: true},
-// 			Name:        userInfo.DisplayName,
-// 			Email:       userInfo.Email,
-// 			DisplayName: userInfo.DisplayName,
-// 		})
-// 		if err != nil {
-// 			return fmt.Errorf("failed to create user: %w", err)
-// 		}
-// 	}
+		// Check for HTTP response error and attempt to read the response body
+		if errResp, ok := err.(interface{ Response() *http.Response }); ok && errResp.Response() != nil {
+			resp := errResp.Response()
+			body, readErr := io.ReadAll(resp.Body)
+			defer resp.Body.Close()
 
-// 	// Store tokens
-// 	expiryTime := time.Now().Add(time.Duration(token.ExpiresIn) * time.Second)
-// 	_, err = mc.db.InsertTokenByUserID(ctx, store.InsertTokenByUserIDParams{
-// 		ID:           user.ID,
-// 		Accesstoken:  sql.NullString{String: token.AccessToken, Valid: true},
-// 		Refreshtoken: sql.NullString{String: token.RefreshToken, Valid: true},
-// 		Expiry:       sql.NullTime{Time: expiryTime, Valid: true},
-// 		Tokentype:    sql.NullString{String: token.TokenType, Valid: true},
-// 	})
+			if readErr != nil {
+				log.Printf("Error reading response body: %v", readErr)
+			} else {
+				log.Printf("Response Status: %d", resp.StatusCode)
+				log.Printf("Response Headers: %+v", resp.Header)
+				log.Printf("Response Body: %s", string(body))
+			}
 
-// 	return err
-// }
+			switch resp.StatusCode {
+			case 401:
+				// Try to refresh token
+				newToken := refreshToken(email, queries)
+				if newToken != nil {
+					log.Println("Token refreshed, please retry the operation")
+					newMail.Error = "Token refreshed, please retry"
+				} else {
+					newMail.Error = "Authentication failed and token refresh failed"
+				}
+			case 403:
+				newMail.Error = "Insufficient permissions to access mailbox"
+			default:
+				newMail.Error = fmt.Sprintf("Failed to fetch messages (Status %d): %s",
+					resp.StatusCode, string(body))
+			}
+			return newMail
+		}
 
-// func (mc *MicrosoftClient) GetAndLogUserEmails(ctx context.Context, microsoftID string) error {
-// 	_, err := mc.db.GetUserByMicrosoftID(ctx, sql.NullString{String: microsoftID, Valid: true})
-// 	if err != nil {
-// 		return fmt.Errorf("failed to get user: %w", err)
-// 	}
-// 	log.Println("tenantID", mc.config.TenantID)
+		// If we can't get more specific error information, return the original error
+		newMail.Error = fmt.Sprintf("Error fetching messages: %v", err)
+		return newMail
+	}
 
-// 	// Initialize the Microsoft Graph client
-// 	cred, err := azidentity.NewClientSecretCredential(mc.config.TenantID, mc.config.ClientID, mc.config.ClientSecret, nil)
-// 	if err != nil {
-// 		return fmt.Errorf("failed to create credential: %w", err)
-// 	}
+	messageValues := messages.GetValue()
+	log.Printf("Successfully fetched %d messages", len(messageValues))
 
-// 	log.Println("cred", cred)
-// 	graphClient, err := msgraphsdk.NewGraphServiceClientWithCredentials(cred, []string{"https://graph.microsoft.com/.default"})
-// 	if err != nil {
-// 		return fmt.Errorf("failed to create Graph client: %w", err)
-// 	}
+	for _, message := range messageValues {
+		if message == nil {
+			continue
+		}
 
-// 	me, err := graphClient.Me().Get(context.Background(), nil)
-// 	if err != nil {
-// 		return fmt.Errorf("failed to get user info: %w", err)
-// 	}
-// 	log.Println("me", me)
-// 	return nil
-// }
+		emailMsg := EmailMessage{}
+
+		if subject := message.GetSubject(); subject != nil {
+			emailMsg.Subject = *subject
+		}
+
+		if from := message.GetFrom(); from != nil {
+			if emailAddr := from.GetEmailAddress(); emailAddr != nil {
+				if addr := emailAddr.GetAddress(); addr != nil {
+					emailMsg.From = *addr
+				}
+			}
+		}
+
+		if receivedDateTime := message.GetReceivedDateTime(); receivedDateTime != nil {
+			emailMsg.ReceivedDateTime = *receivedDateTime
+		}
+
+		if body := message.GetBody(); body != nil {
+			if content := body.GetContent(); content != nil {
+				emailMsg.Body = *content
+			}
+		}
+
+		if isRead := message.GetIsRead(); isRead != nil {
+			emailMsg.IsRead = *isRead
+		}
+
+		if id := message.GetId(); id != nil {
+			emailMsg.ID = *id
+		}
+
+		newMail.Messages = append(newMail.Messages, emailMsg)
+	}
+
+	return newMail
+}
+
+// Debug transport to log request/response details
+type debugTransport struct {
+	base http.RoundTripper
+}
+
+func (d *debugTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	log.Printf("Debug - Request URL: %s", req.URL)
+	log.Printf("Debug - Request Headers: %+v", req.Header)
+
+	resp, err := d.base.RoundTrip(req)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Printf("Debug - Response Status: %s", resp.Status)
+	log.Printf("Debug - Response Headers: %+v", resp.Header)
+
+	return resp, nil
+}
+
+// Helper function to refresh token
+func refreshToken(email string, queries *store.Queries) *oauth2.Token {
+	microfsoftUserReturned, err := queries.GetUserByEmail(context.Background(), email)
+	if err != nil {
+		log.Printf("Error getting user for token refresh: %v", err)
+		return nil
+	}
+
+	tokenRefresh := &oauth2.Token{
+		AccessToken:  microfsoftUserReturned.Accesstoken.String,
+		TokenType:    microfsoftUserReturned.Tokentype.String,
+		RefreshToken: microfsoftUserReturned.Refreshtoken.String,
+		Expiry:       microfsoftUserReturned.Expiry.Time,
+	}
+
+	newToken, err := ssoMicrofsoft.TokenSource(context.Background(), tokenRefresh).Token()
+	if err != nil {
+		log.Printf("Error refreshing token: %v", err)
+		return nil
+	}
+
+	_, err = queries.InsertTokenByUserID(context.Background(), store.InsertTokenByUserIDParams{
+		ID:           microfsoftUserReturned.ID,
+		Accesstoken:  sql.NullString{String: newToken.AccessToken, Valid: true},
+		Tokentype:    sql.NullString{String: newToken.TokenType, Valid: true},
+		Refreshtoken: sql.NullString{String: newToken.RefreshToken, Valid: true},
+		Expiry:       sql.NullTime{Time: newToken.Expiry, Valid: true},
+	})
+	if err != nil {
+		log.Printf("Error updating token in database: %v", err)
+		return nil
+	}
+
+	return newToken
+}
+
+// generate a random string
+func RandStringBytes(n int) string {
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = letterBytes[rand.Intn(len(letterBytes))]
+	}
+	return string(b)
+}
+
+func Signin_microsoft(w http.ResponseWriter, r *http.Request, queries *store.Queries) {
+	//log.Println(RandomString)
+	url := ssoMicrofsoft.AuthCodeURL(RandomString, oauth2.ApprovalForce)
+	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
+}
+
+func Callback_microsoft(w http.ResponseWriter, r *http.Request, queries *store.Queries) {
+	state := r.FormValue("state")
+	code := r.FormValue("code")
+	if state != RandomString {
+		http.Error(w, "State invalid", http.StatusBadRequest)
+		return
+	}
+	token, err := ssoMicrofsoft.Exchange(oauth2.NoContext, code)
+	if err != nil && token == nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	//log.Println(state)
+	result, err := getInfomation(token)
+	log.Println("RESULTS:", result)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	_, err = queries.GetUserByEmail(context.Background(), result.Mail)
+	if err != nil {
+		log.Println("user not found, creating user")
+		userID, err := queries.CreateUserWithMicrosoftID(context.Background(), store.CreateUserWithMicrosoftIDParams{
+			DisplayName: result.DisplayName,
+			Name:        result.GivenName,
+			Email:       result.Mail,
+			MicrosoftID: sql.NullString{String: result.Id, Valid: true},
+		})
+		if err != nil {
+			log.Println("error creating user", err)
+		}
+		queries.InsertTokenByUserID(context.Background(), store.InsertTokenByUserIDParams{
+			ID:           userID.ID,
+			Accesstoken:  sql.NullString{String: token.AccessToken, Valid: true},
+			Tokentype:    sql.NullString{String: token.TokenType, Valid: true},
+			Refreshtoken: sql.NullString{String: token.RefreshToken, Valid: true},
+			Expiry:       sql.NullTime{Time: token.Expiry, Valid: true},
+		})
+	}
+	//set cookie up
+	vars := JWTValues{}
+	vars.Set(result.Id, "Secured")
+	vars.Set(result.Mail, "Email")
+	toke := CreateJWTTokenForUser(vars)
+	cookie := http.Cookie{
+		Name:     "secureCookie",
+		Value:    toke,
+		Path:     "/",
+		MaxAge:   3600,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+	}
+	cookie_email := http.Cookie{
+		Name:     "user_email",
+		Value:    result.Mail,
+		Path:     "/",
+		MaxAge:   360000000,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+	}
+	cookie_loggedIn := &http.Cookie{
+		Name:     "loggedIn",
+		Value:    result.Id,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   3600,
+	}
+	http.SetCookie(w, cookie_loggedIn)
+	http.SetCookie(w, &cookie)
+	http.SetCookie(w, &cookie_email)
+	http.Redirect(w, r, "/admin", http.StatusFound)
+	log.Println("Logging in...")
+	// http.Redirect(w, r, "/login", http.StatusTemporaryRedirect)
+}
+
+func getInfomation(t *oauth2.Token) (microsoftUser, error) {
+	var result microsoftUser
+	client := ssoMicrofsoft.Client(oauth2.NoContext, t)
+	resp, err := client.Get("https://graph.microsoft.com/v1.0/me")
+	if err != nil {
+		return result, err
+	}
+	defer resp.Body.Close()
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return result, err
+	}
+	//log.Println(string(data))
+	err = json.Unmarshal(data, &result)
+	if err != nil {
+		return result, err
+	}
+
+	return result, nil
+}

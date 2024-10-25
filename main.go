@@ -48,16 +48,10 @@ func main() {
 	defer db.Close()
 
 	queries = store.New(db)
-	// microsoftClient, err := middleware.NewMicrosoftClient(*queries)
-	// if err != nil {
-	// 	logger.Error("Failed to setup microsoft client", "error", err)
-	// 	os.Exit(1)
-	// }
-	// setupRoutes(r, microsoftClient)
 
 	setupRoutes(r)
 
-	go runPeriodicDrafter()
+	//go runPeriodicDrafter()
 
 	server := createServer(r, mode, port)
 	CSRF := csrf.Protect(
@@ -168,10 +162,10 @@ func cacheControlMiddleware(next http.Handler) http.Handler {
 
 func getDBHost(mode string) string {
 	if mode == "dev" {
-		return "postgres://postgres:jc194980!@ec2-13-210-207-191.ap-southeast-2.compute.amazonaws.com:5432/emaildrafterDev"
+		return "postgres://postgres:jc194980!@eec2-3-107-3-154.ap-southeast-2.compute.amazonaws.com:5432/emaildrafterDev"
 	}
 	// TODO: Modify this for production database
-	return "postgres://postgres:jc194980!@ec2-13-210-207-191.ap-southeast-2.compute.amazonaws.com:5432/emaildrafter"
+	return "postgres://postgres:jc194980!@ec2-3-107-3-154.ap-southeast-2.compute.amazonaws.com:5432/emaildrafter"
 }
 
 func setupDatabase(dbHost string) (*sql.DB, error) {
@@ -221,8 +215,12 @@ func setupRoutes(r *mux.Router) {
 	r.HandleFunc("/login/auth", middleware.LoginHandler)
 	r.HandleFunc("/login/callback", callbackHandler)
 	// microsoft login
-	// r.HandleFunc("/login/microsoft", microsoftClient.LoginHandlerMicrosoft)
-	// r.HandleFunc("/login/microsoft/callback", microsoftClient.CallbackHandlerMicrosoft)
+	r.HandleFunc("/login/microsoft", func(w http.ResponseWriter, r *http.Request) {
+		middleware.Signin_microsoft(w, r, queries)
+	})
+	r.HandleFunc("/login/microsoft/callback", func(w http.ResponseWriter, r *http.Request) {
+		middleware.Callback_microsoft(w, r, queries)
+	})
 	// a path too https://aidrafter.xyz/.well-known/microsoft-identity-association.json
 	r.HandleFunc("/.well-known/microsoft-identity-association.json", middleware.MicrosoftIdentityAssociationHandler)
 
