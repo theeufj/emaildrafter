@@ -154,188 +154,188 @@ func (a accessToken) GetToken(ctx context.Context, options policy.TokenRequestOp
 }
 
 // handles the mailbox and drafts a response to the 3 most recent emails.
-func GetMailBoxMicrosoft(email string, user store.User, queries *store.Queries) microsoftMail {
-	log.Println("getting mailbox for user", user.ID)
-	newMail := microsoftMail{
-		Messages: make([]EmailMessage, 0),
-	}
+// func GetMailBoxMicrosoft(email string, user store.User, queries *store.Queries) microsoftMail {
+// 	log.Println("getting mailbox for user", user.ID)
+// 	newMail := microsoftMail{
+// 		Messages: make([]EmailMessage, 0),
+// 	}
 
-	t := create_token(email, queries)
-	log.Printf("Debug - Token: %s (first 20 chars)", t.Token[:20])
-	log.Printf("Debug - Token expiry: %v", t.ExpiresOn)
+// 	t := create_token(email, queries)
+// 	log.Printf("Debug - Token: %s (first 20 chars)", t.Token[:20])
+// 	log.Printf("Debug - Token expiry: %v", t.ExpiresOn)
 
-	// Create a debugging transport
-	debugTransport := &debugTransport{
-		base: http.DefaultTransport,
-	}
+// 	// Create a debugging transport
+// 	debugTransport := &debugTransport{
+// 		base: http.DefaultTransport,
+// 	}
 
-	// Create a custom HTTP client with the debug transport
-	httpClient := &http.Client{
-		Transport: debugTransport,
-	}
+// 	// Create a custom HTTP client with the debug transport
+// 	httpClient := &http.Client{
+// 		Transport: debugTransport,
+// 	}
 
-	// Create a TokenCredential from the accessToken
-	tokenCredential := msgraphsdk.NewTokenCredential(string(t.Token))
+// 	// Create a TokenCredential from the accessToken
+// 	tokenCredential := msgraphsdk.NewTokenCredential(string(t.Token))
 
-	// Create adapter with custom client and token credential
-	adapter, err := msgraphsdk.NewGraphRequestAdapter(tokenCredential)
-	if err != nil {
-		log.Printf("Error creating adapter: %v", err)
-		newMail.Error = "Failed to create graph adapter"
-		return newMail
-	}
+// 	// Create adapter with custom client and token credential
+// 	adapter, err := msgraphsdk.NewGraphRequestAdapter(tokenCredential)
+// 	if err != nil {
+// 		log.Printf("Error creating adapter: %v", err)
+// 		newMail.Error = "Failed to create graph adapter"
+// 		return newMail
+// 	}
 
-	// Set the custom HTTP client on the adapter
-	adapter.SetHttpClient(httpClient)
+// 	// Set the custom HTTP client on the adapter
+// 	adapter.SetHttpClient(httpClient)
 
-	// Create graph client with the custom adapter
-	graphClient := msgraphsdk.NewGraphServiceClient(adapter)
+// 	// Create graph client with the custom adapter
+// 	graphClient := msgraphsdk.NewGraphServiceClient(adapter)
 
-	var topValue int32 = 3
-	query := users.ItemMailFoldersItemMessagesRequestBuilderGetQueryParameters{
-		Select: []string{
-			"from",
-			"isRead",
-			"receivedDateTime",
-			"subject",
-			"body",
-			"id",
-		},
-		Top:     &topValue,
-		Orderby: []string{"receivedDateTime DESC"},
-	}
+// 	var topValue int32 = 3
+// 	query := users.ItemMailFoldersItemMessagesRequestBuilderGetQueryParameters{
+// 		Select: []string{
+// 			"from",
+// 			"isRead",
+// 			"receivedDateTime",
+// 			"subject",
+// 			"body",
+// 			"id",
+// 		},
+// 		Top:     &topValue,
+// 		Orderby: []string{"receivedDateTime DESC"},
+// 	}
 
-	requestHeaders := users.ItemMailFoldersItemMessagesRequestBuilderGetRequestConfiguration{
-		QueryParameters: &query,
-	}
+// 	requestHeaders := users.ItemMailFoldersItemMessagesRequestBuilderGetRequestConfiguration{
+// 		QueryParameters: &query,
+// 	}
 
-	// First, try to get the user profile to verify authentication
-	userProfile, err := graphClient.Me().Get(context.Background(), nil)
-	if err != nil {
-		log.Printf("Error fetching user profile: %v", err)
-		newMail.Error = fmt.Sprintf("Authentication test failed: %v", err)
-		return newMail
-	}
-	log.Printf("Debug - Successfully authenticated as user: %v", *userProfile.GetDisplayName())
+// 	// First, try to get the user profile to verify authentication
+// 	userProfile, err := graphClient.Me().Get(context.Background(), nil)
+// 	if err != nil {
+// 		log.Printf("Error fetching user profile: %v", err)
+// 		newMail.Error = fmt.Sprintf("Authentication test failed: %v", err)
+// 		return newMail
+// 	}
+// 	log.Printf("Debug - Successfully authenticated as user: %v", *userProfile.GetDisplayName())
 
-	messages, err := graphClient.Me().MailFolders().
-		ByMailFolderId("inbox").
-		Messages().
-		Get(context.Background(), &requestHeaders)
+// 	messages, err := graphClient.Me().MailFolders().
+// 		ByMailFolderId("inbox").
+// 		Messages().
+// 		Get(context.Background(), &requestHeaders)
 
-	if err != nil {
-		log.Printf("Error fetching messages: %v", err)
+// 	if err != nil {
+// 		log.Printf("Error fetching messages: %v", err)
 
-		// Check for OData error
-		if odataErr, ok := err.(*odataerrors.ODataError); ok {
-			log.Printf("OData error: %v", odataErr)
-			newMail.Error = fmt.Sprintf("OData error: %v", odataErr)
-			return newMail
-		}
+// 		// Check for OData error
+// 		if odataErr, ok := err.(*odataerrors.ODataError); ok {
+// 			log.Printf("OData error: %v", odataErr)
+// 			newMail.Error = fmt.Sprintf("OData error: %v", odataErr)
+// 			return newMail
+// 		}
 
-		// Check for HTTP response error and attempt to read the response body
-		if errResp, ok := err.(interface{ Response() *http.Response }); ok && errResp.Response() != nil {
-			resp := errResp.Response()
-			body, readErr := io.ReadAll(resp.Body)
-			defer resp.Body.Close()
+// 		// Check for HTTP response error and attempt to read the response body
+// 		if errResp, ok := err.(interface{ Response() *http.Response }); ok && errResp.Response() != nil {
+// 			resp := errResp.Response()
+// 			body, readErr := io.ReadAll(resp.Body)
+// 			defer resp.Body.Close()
 
-			if readErr != nil {
-				log.Printf("Error reading response body: %v", readErr)
-			} else {
-				log.Printf("Response Status: %d", resp.StatusCode)
-				log.Printf("Response Headers: %+v", resp.Header)
-				log.Printf("Response Body: %s", string(body))
-			}
+// 			if readErr != nil {
+// 				log.Printf("Error reading response body: %v", readErr)
+// 			} else {
+// 				log.Printf("Response Status: %d", resp.StatusCode)
+// 				log.Printf("Response Headers: %+v", resp.Header)
+// 				log.Printf("Response Body: %s", string(body))
+// 			}
 
-			switch resp.StatusCode {
-			case 401:
-				// Try to refresh token
-				newToken := refreshToken(email, queries)
-				if newToken != nil {
-					log.Println("Token refreshed, please retry the operation")
-					newMail.Error = "Token refreshed, please retry"
-				} else {
-					newMail.Error = "Authentication failed and token refresh failed"
-				}
-			case 403:
-				newMail.Error = "Insufficient permissions to access mailbox"
-			default:
-				newMail.Error = fmt.Sprintf("Failed to fetch messages (Status %d): %s",
-					resp.StatusCode, string(body))
-			}
-			return newMail
-		}
+// 			switch resp.StatusCode {
+// 			case 401:
+// 				// Try to refresh token
+// 				newToken := refreshToken(email, queries)
+// 				if newToken != nil {
+// 					log.Println("Token refreshed, please retry the operation")
+// 					newMail.Error = "Token refreshed, please retry"
+// 				} else {
+// 					newMail.Error = "Authentication failed and token refresh failed"
+// 				}
+// 			case 403:
+// 				newMail.Error = "Insufficient permissions to access mailbox"
+// 			default:
+// 				newMail.Error = fmt.Sprintf("Failed to fetch messages (Status %d): %s",
+// 					resp.StatusCode, string(body))
+// 			}
+// 			return newMail
+// 		}
 
-		// If we can't get more specific error information, return the original error
-		newMail.Error = fmt.Sprintf("Error fetching messages: %v", err)
-		return newMail
-	}
+// 		// If we can't get more specific error information, return the original error
+// 		newMail.Error = fmt.Sprintf("Error fetching messages: %v", err)
+// 		return newMail
+// 	}
 
-	messageValues := messages.GetValue()
-	log.Printf("Successfully fetched %d messages", len(messageValues))
+// 	messageValues := messages.GetValue()
+// 	log.Printf("Successfully fetched %d messages", len(messageValues))
 
-	for _, message := range messageValues {
-		if message == nil {
-			continue
-		}
+// 	for _, message := range messageValues {
+// 		if message == nil {
+// 			continue
+// 		}
 
-		emailMsg := EmailMessage{}
+// 		emailMsg := EmailMessage{}
 
-		if subject := message.GetSubject(); subject != nil {
-			emailMsg.Subject = *subject
-		}
+// 		if subject := message.GetSubject(); subject != nil {
+// 			emailMsg.Subject = *subject
+// 		}
 
-		if from := message.GetFrom(); from != nil {
-			if emailAddr := from.GetEmailAddress(); emailAddr != nil {
-				if addr := emailAddr.GetAddress(); addr != nil {
-					emailMsg.From = *addr
-				}
-			}
-		}
+// 		if from := message.GetFrom(); from != nil {
+// 			if emailAddr := from.GetEmailAddress(); emailAddr != nil {
+// 				if addr := emailAddr.GetAddress(); addr != nil {
+// 					emailMsg.From = *addr
+// 				}
+// 			}
+// 		}
 
-		if receivedDateTime := message.GetReceivedDateTime(); receivedDateTime != nil {
-			emailMsg.ReceivedDateTime = *receivedDateTime
-		}
+// 		if receivedDateTime := message.GetReceivedDateTime(); receivedDateTime != nil {
+// 			emailMsg.ReceivedDateTime = *receivedDateTime
+// 		}
 
-		if body := message.GetBody(); body != nil {
-			if content := body.GetContent(); content != nil {
-				emailMsg.Body = *content
-			}
-		}
+// 		if body := message.GetBody(); body != nil {
+// 			if content := body.GetContent(); content != nil {
+// 				emailMsg.Body = *content
+// 			}
+// 		}
 
-		if isRead := message.GetIsRead(); isRead != nil {
-			emailMsg.IsRead = *isRead
-		}
+// 		if isRead := message.GetIsRead(); isRead != nil {
+// 			emailMsg.IsRead = *isRead
+// 		}
 
-		if id := message.GetId(); id != nil {
-			emailMsg.ID = *id
-		}
+// 		if id := message.GetId(); id != nil {
+// 			emailMsg.ID = *id
+// 		}
 
-		newMail.Messages = append(newMail.Messages, emailMsg)
-	}
+// 		newMail.Messages = append(newMail.Messages, emailMsg)
+// 	}
 
-	return newMail
-}
+// 	return newMail
+// }
 
-// Debug transport to log request/response details
-type debugTransport struct {
-	base http.RoundTripper
-}
+// // Debug transport to log request/response details
+// type debugTransport struct {
+// 	base http.RoundTripper
+// }
 
-func (d *debugTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	log.Printf("Debug - Request URL: %s", req.URL)
-	log.Printf("Debug - Request Headers: %+v", req.Header)
+// func (d *debugTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+// 	log.Printf("Debug - Request URL: %s", req.URL)
+// 	log.Printf("Debug - Request Headers: %+v", req.Header)
 
-	resp, err := d.base.RoundTrip(req)
-	if err != nil {
-		return nil, err
-	}
+// 	resp, err := d.base.RoundTrip(req)
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	log.Printf("Debug - Response Status: %s", resp.Status)
-	log.Printf("Debug - Response Headers: %+v", resp.Header)
+// 	log.Printf("Debug - Response Status: %s", resp.Status)
+// 	log.Printf("Debug - Response Headers: %+v", resp.Header)
 
-	return resp, nil
-}
+// return resp, nil
+// }
 
 // Helper function to refresh token
 func refreshToken(email string, queries *store.Queries) *oauth2.Token {

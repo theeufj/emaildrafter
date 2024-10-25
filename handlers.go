@@ -109,8 +109,8 @@ func AdminHandler(q store.Queries) func(http.ResponseWriter, *http.Request) {
 			// // Create a MicrosoftClient instance
 
 			// // Call GetAndLogUserEmails
-			log.Println("getting mailbox for user", user.ID)
-			middleware.GetMailBoxMicrosoft(user.Email, user, &q)
+			// log.Println("getting mailbox for user", user.ID)
+			// middleware.GetMailBoxMicrosoft(user.Email, user, &q)
 
 			err = portal.Execute(w, data)
 			if err != nil {
