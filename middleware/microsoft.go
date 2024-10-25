@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"emaildrafter/database/store"
 	"encoding/json"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -15,10 +14,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/joho/godotenv"
-	msgraphsdk "github.com/microsoftgraph/msgraph-sdk-go"
-	graphmodels "github.com/microsoftgraph/msgraph-sdk-go/models"
-	"github.com/microsoftgraph/msgraph-sdk-go/models/odataerrors"
-	"github.com/microsoftgraph/msgraph-sdk-go/users"
 	"golang.org/x/exp/rand"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/microsoft"
@@ -101,52 +96,52 @@ func create_token(email string, queries *store.Queries) accessToken {
 
 // Updated SendMail function with better error handling
 
-func SendMail(contentBond *string, id string, email string, queries *store.Queries) error {
-	t := create_token(email, queries)
-	graphClient, err := msgraphsdk.NewGraphServiceClientWithCredentials(t, []string{
-		"user.read",
-		"Mail.ReadWrite",
-		"offline_access",
-	})
-	if err != nil {
-		return fmt.Errorf("failed to create graph client: %w", err)
-	}
+// func SendMail(contentBond *string, id string, email string, queries *store.Queries) error {
+// 	t := create_token(email, queries)
+// 	graphClient, err := msgraphsdk.NewGraphServiceClientWithCredentials(t, []string{
+// 		"user.read",
+// 		"Mail.ReadWrite",
+// 		"offline_access",
+// 	})
+// 	if err != nil {
+// 		return fmt.Errorf("failed to create graph client: %w", err)
+// 	}
 
-	requestBody := graphmodels.NewMessage()
-	body := graphmodels.NewItemBody()
-	contentType := graphmodels.TEXT_BODYTYPE
-	body.SetContentType(&contentType)
-	body.SetContent(contentBond)
-	requestBody.SetBody(body)
+// 	requestBody := graphmodels.NewMessage()
+// 	body := graphmodels.NewItemBody()
+// 	contentType := graphmodels.TEXT_BODYTYPE
+// 	body.SetContentType(&contentType)
+// 	body.SetContent(contentBond)
+// 	requestBody.SetBody(body)
 
-	sendMailBody := users.NewItemMessagesItemCreateReplyPostRequestBody()
-	sendMailBody.SetMessage(requestBody)
+// 	sendMailBody := users.NewItemMessagesItemCreateReplyPostRequestBody()
+// 	sendMailBody.SetMessage(requestBody)
 
-	_, err = graphClient.Me().Messages().ByMessageId(id).CreateReply().Post(
-		context.Background(),
-		sendMailBody,
-		nil, // Using nil for config since we don't need custom headers
-	)
+// 	_, err = graphClient.Me().Messages().ByMessageId(id).CreateReply().Post(
+// 		context.Background(),
+// 		sendMailBody,
+// 		nil, // Using nil for config since we don't need custom headers
+// 	)
 
-	if err != nil {
-		// Check for OData error
-		if odataErr, ok := err.(*odataerrors.ODataError); ok {
-			log.Println(odataErr.Error())
-		}
+// 	if err != nil {
+// 		// Check for OData error
+// 		if odataErr, ok := err.(*odataerrors.ODataError); ok {
+// 			log.Println(odataErr.Error())
+// 		}
 
-		// Check for HTTP response error
-		if errResp, ok := err.(interface{ Response() *http.Response }); ok && errResp.Response() != nil {
-			resp := errResp.Response()
-			body, _ := io.ReadAll(resp.Body)
-			defer resp.Body.Close()
-			return fmt.Errorf("failed to send mail: status=%d, body=%s",
-				resp.StatusCode, string(body))
-		}
-		return fmt.Errorf("failed to send mail: %w", err)
-	}
+// 		// Check for HTTP response error
+// 		if errResp, ok := err.(interface{ Response() *http.Response }); ok && errResp.Response() != nil {
+// 			resp := errResp.Response()
+// 			body, _ := io.ReadAll(resp.Body)
+// 			defer resp.Body.Close()
+// 			return fmt.Errorf("failed to send mail: status=%d, body=%s",
+// 				resp.StatusCode, string(body))
+// 		}
+// 		return fmt.Errorf("failed to send mail: %w", err)
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
 // Ensure accessToken implements TokenCredential interface
 func (a accessToken) GetToken(ctx context.Context, options policy.TokenRequestOptions) (azcore.AccessToken, error) {
