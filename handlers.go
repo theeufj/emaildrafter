@@ -78,9 +78,9 @@ func AdminHandler(q store.Queries) func(http.ResponseWriter, *http.Request) {
 		handler := csrfMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Get the user by their google id, which is found in the loggedIn cookie
 			cookie, err := r.Cookie("loggedIn")
-			log.Println("cookie", cookie)
+			// log.Println("cookie", cookie)
 			if err != nil {
-				log.Println("Cookie error:", err)
+				// log.Println("Cookie error:", err)
 				http.Error(w, "Unauthorized", http.StatusUnauthorized)
 				// redirect to login page
 				http.Redirect(w, r, "/", http.StatusFound)
@@ -92,9 +92,9 @@ func AdminHandler(q store.Queries) func(http.ResponseWriter, *http.Request) {
 				if err != nil {
 					log.Println("error getting user by id", err)
 				}
-				log.Println("user by id", user.ID)
+				// log.Println("user by id", user.ID)
 			}
-			log.Println("user", user.ID)
+			// log.Println("user", user.ID)
 
 			// Generate CSRF token
 			csrfToken := csrf.Token(r)
@@ -243,9 +243,10 @@ func GeneratePersona(q store.Queries) func(http.ResponseWriter, *http.Request) {
 
 		persona, err := library.SentEmailReader(gmailService, user, &q, 50)
 		if err != nil {
+			log.Println("ERROR GENERATING PERSONA", err)
 			http.Error(w, "Failed to generate persona", http.StatusInternalServerError)
 		}
-		log.Println(persona)
+		log.Println("PERSONA", persona)
 		response := SetPersonaResponse{
 			Success: true,
 			Message: persona,

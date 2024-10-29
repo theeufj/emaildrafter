@@ -104,8 +104,8 @@ func GmailCompose(token *oauth2.Token, user store.User, q *store.Queries) error 
 	ctx := context.Background()
 
 	// Log token information (be careful not to log the entire token in production)
-	log.Printf("Using token: AccessToken (first 10 chars): %s, Expiry: %v",
-		token.AccessToken[:10], token.Expiry)
+	// log.Printf("Using token: AccessToken (first 10 chars): %s, Expiry: %v",
+	// 	token.AccessToken[:10], token.Expiry)
 	// lets get the access token from the db
 	client := config.Client(ctx, token)
 	gmailService, err := gmail.New(client)
@@ -122,7 +122,7 @@ func GmailCompose(token *oauth2.Token, user store.User, q *store.Queries) error 
 	messages, err := GetMessages(gmailService, 15)
 	if err != nil {
 		// If this error occurs, it's likely due to an invalid token
-		log.Printf("Error getting messages: %v", err)
+		// log.Printf("Error getting messages: %v", err)
 		// Attempt to refresh the token
 		newToken, refreshErr := middleware.HandleRefreshToken(user.ID, q)
 		if refreshErr != nil {
@@ -149,7 +149,7 @@ func GmailCompose(token *oauth2.Token, user store.User, q *store.Queries) error 
 			if err != nil {
 				log.Printf("Error checking if message %s is processed: %v", msg.Id, err)
 			}
-			log.Println("HAS BEEN PROCESSED:", strconv.FormatBool(processed), "\nThe message id was:", msg.Id)
+			// log.Println("HAS BEEN PROCESSED:", strconv.FormatBool(processed), "\nThe message id was:", msg.Id)
 
 			if processed {
 				log.Printf("Skipping message %s: Already processed", msg.Id)
@@ -212,7 +212,7 @@ func processMessage(gmailService *gmail.Service, msg *gmail.Message, user store.
 		return fmt.Errorf("failed to create draft: %w", err)
 	}
 
-	log.Println("Draft created successfully")
+	// log.Println("Draft created successfully")
 	return nil
 }
 
@@ -380,11 +380,11 @@ func DraftResponse(bodyMessage string, user store.User, queries *store.Queries) 
 	}
 	defer client.Close()
 
-	log.Println("Line 192 in Draft Response")
+	// log.Println("Line 192 in Draft Response")
 
 	// Create the prompt and check if booking is requested
 	bookingRequested, prompt := promptStringCreator(user, bodyMessage)
-	log.Println("Prompt is: " + prompt)
+	// log.Println("Prompt is: " + prompt)
 
 	// Function to generate content using the specified model
 	generateContent := func(model *genai.GenerativeModel) (string, error) {
@@ -415,7 +415,7 @@ func DraftResponse(bodyMessage string, user store.User, queries *store.Queries) 
 				return result, err
 			}
 
-			log.Printf("Attempt %d failed: %v. Retrying in %v...\n", i+1, err, delay)
+			// log.Printf("Attempt %d failed: %v. Retrying in %v...\n", i+1, err, delay)
 
 			// Add jitter to avoid thundering herd problem
 			jitter := time.Duration(rand.Int63n(int64(delay / 2)))
@@ -474,7 +474,7 @@ func DraftResponse(bodyMessage string, user store.User, queries *store.Queries) 
 
 	// If a booking was requested, handle the booking logic
 	if bookingRequested {
-		log.Println("Booking reference found, initiating calendar booking...")
+		// log.Println("Booking reference found, initiating calendar booking...")
 
 		// Call CalendarHandler to handle booking
 		availableSlots, err := CalendarHandler(user, queries)
@@ -922,11 +922,12 @@ func findAvailableTimeSlots(events []struct {
 // based on the user's historical communication style. It then uses this persona to draft a response.
 func SentEmailReader(srv *gmail.Service, user store.User, queries *store.Queries, limit int) (string, error) {
 	// Query for the last 50 sent emails
+	log.Println("QUERYING SENT EMAILS")
 	sentEmails, err := Query(srv, "in:sent")
 	if err != nil {
 		return "", fmt.Errorf("failed to query sent emails: %w", err)
 	}
-
+	log.Println("SENT EMAILS", sentEmails)
 	// Limit the number of emails processed
 	if len(sentEmails) > limit {
 		sentEmails = sentEmails[:limit]
@@ -947,7 +948,7 @@ func SentEmailReader(srv *gmail.Service, user store.User, queries *store.Queries
 	if err != nil {
 		return "", fmt.Errorf("failed to analyze communication style: %w", err)
 	}
-
+	log.Println("PERSONA GMAIL 950", persona)
 	// Update user's persona in the database
 	_, err = queries.SetPersona(context.TODO(), store.SetPersonaParams{
 		ID:      user.ID,
@@ -957,7 +958,7 @@ func SentEmailReader(srv *gmail.Service, user store.User, queries *store.Queries
 		return "", fmt.Errorf("failed to update user persona: %w", err)
 	}
 
-	log.Printf("Updated persona for user %s: %s", user.Name, persona)
+	// log.Printf("Updated persona for user %s: %s", user.Name, persona)
 	return persona, nil
 }
 

@@ -33,7 +33,7 @@ func InitializeOAuth() error {
 		return fmt.Errorf("missing required environment variables: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, or GOOGLE_REDIRECT_URI")
 	}
 
-	log.Printf("OAuth2 Config: ClientID=%s, RedirectURI=%s", clientID, redirectURI)
+	// log.Printf("OAuth2 Config: ClientID=%s, RedirectURI=%s", clientID, redirectURI)
 
 	config = &oauth2.Config{
 		ClientID:     clientID,
@@ -99,9 +99,9 @@ func CallbackHandler(w http.ResponseWriter, r *http.Request, queries *store.Quer
 		http.Error(w, "Failed to exchange authorization code for token", http.StatusInternalServerError)
 		return
 	}
-	log.Printf("Access Token: %s", token.AccessToken)
-	log.Printf("Refresh Token: %s", token.RefreshToken)
-	log.Printf("Token Expiry: %v", token.Expiry)
+	// log.Printf("Access Token: %s", token.AccessToken)
+	// log.Printf("Refresh Token: %s", token.RefreshToken)
+	// log.Printf("Token Expiry: %v", token.Expiry)
 
 	userInfo, err := getUserInfo(r.Context(), token)
 	if err != nil {
@@ -117,7 +117,7 @@ func CallbackHandler(w http.ResponseWriter, r *http.Request, queries *store.Quer
 
 	googleID, ok := userInfo["sub"].(string)
 	if !ok {
-		log.Printf("Error getting Google ID from user info: %v", userInfo)
+		// log.Printf("Error getting Google ID from user info: %v", userInfo)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -182,8 +182,8 @@ func handleUser(ctx context.Context, queries *store.Queries, userInfo map[string
 		return fmt.Errorf("error encrypting access token: %w", err)
 	}
 
-	log.Println("REFRESH TOKEN:", token.RefreshToken)
-	log.Println("KEY:", os.Getenv("KEY"))
+	// log.Println("REFRESH TOKEN:", token.RefreshToken)
+	// log.Println("KEY:", os.Getenv("KEY"))
 	encryptedRefreshToken, err := Encrypt(token.RefreshToken, os.Getenv("KEY"))
 	if err != nil {
 		return fmt.Errorf("error encrypting refresh token: %w", err)
@@ -228,7 +228,7 @@ func HandleRefreshToken(userID uuid.UUID, q *store.Queries) (*oauth2.Token, erro
 	}
 
 	key := os.Getenv("KEY")
-	log.Printf("Decryption key length: %d", len(key))
+	// log.Printf("Decryption key length: %d", len(key))
 
 	if len(key) == 0 {
 		return nil, fmt.Errorf("decryption key is empty")
@@ -257,17 +257,17 @@ func HandleRefreshToken(userID uuid.UUID, q *store.Queries) (*oauth2.Token, erro
 
 func refreshTokenWithRetry(tokenSource oauth2.TokenSource) (*oauth2.Token, error) {
 	var token *oauth2.Token
-	log.Println("INSIDE REFRESH TOKEN:", tokenSource)
+	// log.Println("INSIDE REFRESH TOKEN:", tokenSource)
 	var err error
 	maxRetries := 3
 	for i := 0; i < maxRetries; i++ {
-		log.Printf("Attempting to refresh token (attempt %d)", i+1)
+		// log.Printf("Attempting to refresh token (attempt %d)", i+1)
 		token, err = tokenSource.Token()
 		if err == nil {
-			log.Printf("Token refreshed successfully")
+			// log.Printf("Token refreshed successfully")
 			return token, nil
 		}
-		log.Printf("Token refresh attempt %d failed: %v", i+1, err)
+		// log.Printf("Token refresh attempt %d failed: %v", i+1, err)
 		time.Sleep(time.Duration(1<<uint(i)) * time.Second)
 	}
 	return nil, fmt.Errorf("failed to refresh token after %d attempts: %w", maxRetries, err)

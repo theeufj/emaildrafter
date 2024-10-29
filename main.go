@@ -51,7 +51,7 @@ func main() {
 
 	setupRoutes(r)
 
-	//go runPeriodicDrafter()
+	go runPeriodicDrafter()
 
 	server := createServer(r, mode, port)
 	CSRF := csrf.Protect(
@@ -162,7 +162,7 @@ func cacheControlMiddleware(next http.Handler) http.Handler {
 
 func getDBHost(mode string) string {
 	if mode == "dev" {
-		return "postgres://postgres:jc194980!@eec2-3-107-3-154.ap-southeast-2.compute.amazonaws.com:5432/emaildrafterDev"
+		return "postgres://postgres:jc194980!@ec2-3-107-3-154.ap-southeast-2.compute.amazonaws.com:5432/emaildrafterDev"
 	}
 	// TODO: Modify this for production database
 	return "postgres://postgres:jc194980!@ec2-3-107-3-154.ap-southeast-2.compute.amazonaws.com:5432/emaildrafter"
@@ -306,6 +306,6 @@ func Drafter(queries store.Queries, userID uuid.UUID) error {
 		return err
 	}
 
-	logger.Info("Composing email for user", "userID", userID)
+	// logger.Info("Composing email for user", "userID", userID)
 	return library.GmailCompose(token, user, &queries)
 }
