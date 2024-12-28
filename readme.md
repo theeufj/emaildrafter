@@ -1,85 +1,60 @@
-# Timstack
+# EmailDrafter
 
-A stack inspired by the amazing Tim.
+EmailDrafter is an automated email drafting tool that integrates with your Gmail account. It scans your inbox for new emails and drafts responses based on your historical communication style. Additionally, it can recommend meeting times if someone requests a meeting.
+
+## Features
+
+- **Automated Email Drafting**: Automatically drafts responses to emails in your Gmail inbox.
+- **Meeting Time Recommendations**: Suggests available meeting times based on your calendar when a meeting is requested.
+- **Persona-Based Responses**: Crafts responses that reflect your professional persona and communication style.
+
+## Project Structure
 
 ## Getting Started
 
-Install [air](https://github.com/air-verse/air) for hot reload if not done already.
-Install [Task](https://taskfile.dev/installation) for task runner if not done already.
+### Prerequisites
 
-Grab the static tailwind binary from [here](https://github.com/tailwindlabs/tailwindcss/releases) and store it in your path - i.e:
+- Docker
+- Docker Compose
+- Go 1.17 or later
 
-```bash
-$ mkdir -p ~/tailwind
-$ cd ~/tailwind
-$ curl -sLO https://github.com/tailwindlabs/tailwindcss/releases/download/v3.4.6/tailwindcss-macos-arm64
-$ chmod +x tailwindcss-macos-x64
-$ mv tailwindcss-macos-x64 tailwindcss
-$ PATH=$PATH:`pwd`/tools
-...
-```
+### Installation
 
-Note: _You will want the right binary for your OS/arch_
+1. **Clone the repository**:
+    ```sh
+    git clone https://github.com/yourusername/emaildrafter.git
+    cd emaildrafter
+    ```
 
-You should be ready to go - check your build:
+2. **Set up environment variables**:
+    Create a [.env](http://_vscodecontentref_/18) file in the root directory and add your environment variables:
+    ```env
+    GOOGLE_CLIENT_ID=your-google-client-id
+    GOOGLE_CLIENT_SECRET=your-google-client-secret
+    GOOGLE_REDIRECT_URI=your-google-redirect-uri
+    GEMINI_API_KEY=your-gemini-api-key
+    ```
 
-```bash
-go generate
-go build -o mybin
-./mybin
-```
+3. **Build and run the application**:
+    ```sh
+    docker-compose up --build
+    ```
 
-## Building Tailwind Templates
+### Usage
 
-With the following you can go fast and generate CSS output CSS to play with.
+1. **Authenticate with Google**:
+    - Navigate to `http://localhost:8080` and log in with your Google account.
 
-```bash
-$ cd templates
-$ tailwindcss -i ./tailwind.css -o ./static/css/main.css --watch
+2. **Automatic Email Drafting**:
+    - The application will automatically scan your Gmail inbox for new emails and draft responses.
 
-Rebuilding...
+3. **Meeting Time Recommendations**:
+    - If an email requests a meeting, the application will suggest available meeting times based on your calendar.
 
-Done in 264ms.
-```
+## Contributing
 
-When happy with templates, compile and minify the CSS for production
-`tailwindcss -i ./tailwind.css -o ./static/css/main.css --minify`
+Contributions are welcome! Please open an issue or submit a pull request.
 
-## Using taskfiles and air to make life easier
+## License
 
-Rather than remembering the specifics, you can use the provided task file to make life easier as a starting point.
-
-For dev, which will run with hotreload, via a smart proxy, on change of a go, js, tmpl, css, html file, you can use:
-`task live`
-
-For production, which will minify any outputs and be ready to run on a box:
-`task prod`
-and of course you can run with `task run-prod`.
-
-Refer to the taskfile documentation for overrides of these two modes and run `task` on its own to see all options.
-
-You can provide a .env file and the taskfile will take care of loading that - there's a simple example for the port.
-
-## Database / SQL
-
-### Create a new migration
-
-Note, we use `-seq -digits 4` to use 0001 style format which makes SQLc work better lexographically.
-
-`migrate create -seq -digits 4 -dir ./database/migrations/ -ext sql <your_migration>`
-
-### Local Docker Container
-
-`docker run -e POSTGRES_USER=local -e POSTGRES_PASSWORD=asecurepassword -e POSTGRES_DB=cylm -p 5003:5432 postgres:latest`
-
-### Running a migration
-
-`migrate -path ./database/migrations -database postgres://local:asecurepassword@0.0.0.0:5003/cylm?sslmode=disable up`
-
-### Debugging with pgcli
-
-`pgcli postgres://local:asecurepassword@0.0.0.0:5003/cylm?sslmode=disable`
-
-## TODO
-
-Have fun!
+This project is licensed under the MIT License.

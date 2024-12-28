@@ -2683,3 +2683,8 @@
 {"time":"2024-10-26T11:11:57.057053+11:00","level":"INFO","source":{"function":"main.main","file":"/Users/joshtheeuf/Github/emaildrafter/main.go","line":67},"msg":"Your app is running","host":":8080"}
 {"time":"2024-10-26T11:14:51.644649+11:00","level":"INFO","source":{"function":"main.setupLogger","file":"/Users/joshtheeuf/Github/emaildrafter/main.go","line":147},"msg":"Logging setup complete","mode":"dev"}
 {"time":"2024-10-26T11:14:51.867902+11:00","level":"INFO","source":{"function":"main.main","file":"/Users/joshtheeuf/Github/emaildrafter/main.go","line":67},"msg":"Your app is running","host":":8080"}
+{"time":"2024-12-28T12:11:33.509622+11:00","level":"INFO","source":{"function":"main.setupLogger","file":"/Users/joshtheeuf/Github/EmailDrafter/main.go","line":147},"msg":"Logging setup complete","mode":"dev"}
+{"time":"2024-12-28T12:36:48.349965+11:00","level":"INFO","source":{"function":"main.setupLogger","file":"/Users/joshtheeuf/Github/EmailDrafter/main.go","line":147},"msg":"Logging setup complete","mode":"dev"}
+{"time":"2024-12-28T13:15:23.894212+11:00","level":"INFO","source":{"function":"main.setupLogger","file":"/Users/joshtheeuf/Github/EmailDrafter/main.go","line":165},"msg":"Logging setup complete","mode":"dev"}
+{"time":"2024-12-28T13:17:05.298618+11:00","level":"INFO","source":{"function":"main.setupLogger","file":"/Users/joshtheeuf/Github/EmailDrafter/main.go","line":165},"msg":"Logging setup complete","mode":"dev"}
+{"time":"2024-12-28T13:20:01.255432+11:00","level":"INFO","source":{"function":"main.setupLogger","file":"/Users/joshtheeuf/Github/EmailDrafter/main.go","line":165},"msg":"Logging setup complete","mode":"dev"}

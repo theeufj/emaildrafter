@@ -16,6 +16,7 @@ import (
 	"os"
 	"time"
 
+	"os/exec"
 	"github.com/google/uuid"
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
@@ -26,6 +27,16 @@ var (
 	logger  *slog.Logger
 	queries *store.Queries
 )
+
+
+
+
+func runMigrations(connectionString string) {
+    cmd := exec.Command("migrate", "-path", "database/migrations", "-database", connectionString, "up")
+    if err := cmd.Run(); err != nil {
+        log.Fatalf("Failed to run migrations: %v", err)
+    }
+}
 
 func main() {
 	if err := env.LoadFromFile(".env"); err != nil {
@@ -39,8 +50,15 @@ func main() {
 
 	r := setupRouter()
 
-	dbHost := getDBHost(mode)
-	db, err := setupDatabase(dbHost)
+	dbHost := os.Getenv("DB_HOST")
+	dbPort := os.Getenv("DB_PORT")
+	dbUser := os.Getenv("DB_USER")
+	dbPassword := os.Getenv("DB_PASSWORD")
+	dbName := os.Getenv("DB_NAME")
+	connectionString := fmt.Sprintf("postgress://host=%s port=%s user=%s password=%s dbname=%s sslmode=disable", dbHost, dbPort, dbUser, dbPassword, dbName)
+
+	runMigrations(connectionString)
+	db, err := setupDatabase(dbHost, dbPort, dbUser, dbPassword, dbName)
 	if err != nil {
 		logger.Error("Failed to setup database", "error", err)
 		os.Exit(1)
@@ -168,8 +186,10 @@ func getDBHost(mode string) string {
 	return "postgres://postgres:jc194980!@ec2-3-107-3-154.ap-southeast-2.compute.amazonaws.com:5432/emaildrafter"
 }
 
-func setupDatabase(dbHost string) (*sql.DB, error) {
-	db, err := sql.Open("postgres", dbHost)
+func setupDatabase(host, port, user, password, dbname string) (*sql.DB, error) {
+	psqlInfo := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+		host, port, user, password, dbname)
+	db, err := sql.Open("postgres", psqlInfo)
 	if err != nil {
 		return nil, err
 	}
@@ -246,7 +266,7 @@ func runPeriodicDrafter() {
 
 	for range ticker.C {
 		users, err := queries.GetAllUsers(context.Background())
-		if err != nil {
+		if (err != nil) {
 			logger.Error("Failed to get users", "error", err)
 			continue
 		}
