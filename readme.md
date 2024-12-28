@@ -16,7 +16,7 @@ EmailDrafter is an automated email drafting tool that integrates with your Gmail
 
 - Docker
 - Docker Compose
-- Go 1.17 or later
+- Go 1.23 or later
 
 ### Installation
 
